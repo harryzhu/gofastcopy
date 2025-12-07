@@ -183,6 +183,7 @@ func FastCopy() error {
 
 		timeGetStart := GetNowUnix()
 		timeGetStop := int64(0)
+		timeDuration := int64(0)
 
 		wgGetChanFile := sync.WaitGroup{}
 		numGet := int32(0)
@@ -213,7 +214,7 @@ func FastCopy() error {
 			if curNumGet > int32(qcap-1) && curNumGet%int32(qcap) == 0 {
 				wgGetChanFile.Wait()
 				timeGetStop = GetNowUnix()
-				timeDuration := timeGetStop - timeGetStart
+				timeDuration = timeGetStop - timeGetStart
 				if timeDuration > 0 {
 					totalSpeed = totalWriteSize / timeDuration
 				}
@@ -221,6 +222,12 @@ func FastCopy() error {
 
 		}
 		wgGetChanFile.Wait()
+
+		timeGetStop = GetNowUnix()
+		timeDuration = timeGetStop - timeGetStart
+		if timeDuration > 0 {
+			totalSpeed = totalWriteSize / timeDuration
+		}
 
 	}()
 
@@ -384,7 +391,8 @@ func FastCopy() error {
 
 	wg.Wait()
 
-	fmt.Printf(" ... %20d\n", num)
+	fmt.Printf(" ...%10d Files, %10d MB, %10d MB/s\r", num, totalWriteSize>>20, totalSpeed>>20)
+
 	close(chanFile)
 
 	for k, v := range numSkip {
