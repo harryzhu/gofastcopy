@@ -104,6 +104,9 @@ func FlagsValidate() error {
 }
 
 func SendFileToChanFile(srcPath string, dstPath string, info os.FileInfo, copyMode int) (ele map[string]any, err error) {
+	srcPath = ToUnixSlash(srcPath)
+	dstPath = ToUnixSlash(dstPath)
+
 	ele = make(map[string]any)
 
 	var fdata []byte
@@ -232,6 +235,8 @@ func FastCopy() error {
 				PrintError("FastCopy: walk", err)
 				return err
 			}
+
+			fpath = ToUnixSlash(fpath)
 
 			if info.IsDir() {
 				if IsIgnoreEmptyFolder {
@@ -442,6 +447,7 @@ func CopyFile(src, dst string) error {
 }
 
 func MakeDirs(dpath string) error {
+	dpath = ToUnixSlash(dpath)
 	_, err := os.Stat(dpath)
 	if err != nil {
 		DebugInfo("MakeDirs", dpath)
