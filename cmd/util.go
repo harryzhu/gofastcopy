@@ -202,6 +202,7 @@ func FastCopy() error {
 				}()
 
 				GetChanFileToDisk(cf)
+
 			}(cf)
 
 			curNumGet := atomic.LoadInt32(&numGet)
@@ -378,7 +379,7 @@ func FastCopy() error {
 
 	wg.Wait()
 
-	fmt.Printf(" ... %20d\r", num)
+	fmt.Printf(" ... %20d\n", num)
 	close(chanFile)
 
 	for k, v := range numSkip {

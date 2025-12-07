@@ -28,6 +28,7 @@ var (
 	ThreadNum         int
 	IsWithLimitMemory bool
 	IsWithTimeUTC     bool
+	//
 )
 
 var (
@@ -100,4 +101,5 @@ func init() {
 	rootCmd.Flags().StringVar(&MaxAge, "max-age", "", "format: 20231225235959, means 2023-12-25 23:59:59")
 	//
 	rootCmd.Flags().IntVar(&ThreadNum, "threads", 0, "")
+	//
 }
