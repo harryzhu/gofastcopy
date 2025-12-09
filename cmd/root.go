@@ -28,6 +28,7 @@ var (
 	ThreadNum         int
 	IsWithLimitMemory bool
 	IsWithTimeUTC     bool
+	IsInSingleHDD     bool
 	//
 )
 
@@ -83,6 +84,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&IsDebug, "debug", false, "if print debug info")
 	rootCmd.PersistentFlags().BoolVar(&IsWithLimitMemory, "with-limit-memory", false, "")
 	rootCmd.PersistentFlags().BoolVar(&IsWithTimeUTC, "with-time-utc", false, "")
+	rootCmd.PersistentFlags().BoolVar(&IsInSingleHDD, "in-single-hdd", false, "")
 	//
 	rootCmd.Flags().BoolVar(&IsIgnoreDotFile, "ignore-dot-file", true, "")
 	rootCmd.Flags().BoolVar(&IsIgnoreEmptyFolder, "ignore-empty-folder", true, "")
