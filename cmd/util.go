@@ -166,7 +166,8 @@ func FastCopy() error {
 	numSkip["skip_size_max"] = 0
 	numSkip["skip_age_min"] = 0
 	numSkip["skip_age_max"] = 0
-	numSkip["skip_exclude"] = 0
+	numSkip["skip_exclude_dir"] = 0
+	numSkip["skip_exists"] = 0
 
 	qcap := GetThreadNum()
 
@@ -193,7 +194,6 @@ func FastCopy() error {
 		defer wg.Done()
 
 		if IsInSingleHDD == false {
-			wg.Done()
 			return nil
 		}
 		var lenChanFile int
@@ -208,7 +208,6 @@ func FastCopy() error {
 			if rwThreshold > qcap {
 				rwThreshold = qcap - 1
 			}
-			//rwThreshold = numCPU
 			fmt.Println("ReadWriteThreshold:", rwThreshold)
 		}
 
@@ -251,7 +250,7 @@ func FastCopy() error {
 		return nil
 	}()
 
-	go func() {
+	go func() error {
 		defer wg.Done()
 
 		timeGetStart := GetNowUnix()
@@ -306,10 +305,10 @@ func FastCopy() error {
 		if timeDuration > 0 {
 			totalSpeed = totalWriteSize / timeDuration
 		}
-
+		return nil
 	}()
 
-	go func() {
+	go func() error {
 		defer wg.Done()
 
 		IsAllReadDone = false
@@ -414,7 +413,7 @@ func FastCopy() error {
 
 				_, err = os.Stat(excludePath)
 				if err == nil {
-					numSkip["skip_exclude"]++
+					numSkip["skip_exclude_dir"]++
 					DebugInfo("FastCopy: SKIP", excludePath)
 					return nil
 				}
@@ -432,6 +431,7 @@ func FastCopy() error {
 			if IsOverwrite == false {
 				_, err = os.Stat(targetPath)
 				if err == nil {
+					numSkip["skip_exists"]++
 					return nil
 				}
 			}
@@ -483,23 +483,20 @@ func FastCopy() error {
 		wgSendChanFile.Wait()
 
 		IsAllReadDone = true
+
+		return nil
 	}()
 
 	wg.Wait()
 
-	fmt.Printf(" ...%10d Files, %10d MB, %10d MB/s\r", num, totalWriteSize>>20, totalSpeed>>20)
-
 	close(chanFile)
 
+	fmt.Println("------------------------------------------------------------")
 	for k, v := range numSkip {
-		if v > 0 {
-			fmt.Printf("\n** Ignored: %s: %v **", k, v)
-		}
-
+		fmt.Printf("\n** Ignored: %20s: %10v", k, v)
 	}
 
-	fmt.Printf("\n\n***** Total: %d *****\n", num)
-
+	fmt.Printf("\n\n** Files: Total: %d, Copied: %d MB, Speed: %d MB/s **\n", num, totalWriteSize>>20, totalSpeed>>20)
 	return nil
 }
 
