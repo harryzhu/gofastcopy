@@ -16,8 +16,11 @@ var (
 	IsIgnoreDotFile     bool
 	IsIgnoreEmptyFolder bool
 	IsOverwrite         bool
+	IsDryRun            bool
 	MaxSize             int64
 	MinSize             int64
+	MaxSizeMB           int64
+	MinSizeMB           int64
 	MinAge              string
 	MaxAge              string
 	SourceDir           string
@@ -82,6 +85,7 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&IsDebug, "debug", false, "if print debug info")
+	rootCmd.PersistentFlags().BoolVar(&IsDryRun, "dry-run", false, "if true, will not copy the file, just print the file on console")
 	rootCmd.PersistentFlags().BoolVar(&IsWithLimitMemory, "with-limit-memory", false, "run with low momery, task will be forced to 4 threads")
 	rootCmd.PersistentFlags().BoolVar(&IsWithTimeUTC, "with-time-utc", false, "use UTC timezone with parameter --min-age / --max-age")
 	rootCmd.PersistentFlags().BoolVar(&IsInSingleHDD, "in-single-hdd", false, "only for massive small files copy on a single low speed hard disk")
@@ -98,6 +102,9 @@ func init() {
 	//
 	rootCmd.Flags().Int64Var(&MinSize, "min-size", -1, "from the minimum file size")
 	rootCmd.Flags().Int64Var(&MaxSize, "max-size", -1, "to the maximum file size")
+	rootCmd.Flags().Int64Var(&MinSizeMB, "min-size-mb", -1, "i.e.: 16 means 16MB, will replace --min-size=16*1024*1024 automatically")
+	rootCmd.Flags().Int64Var(&MaxSizeMB, "max-size-mb", -1, "i.e.: 32 means 32MB, will replace --max-size=32*1024*1024 automatically")
+
 	//
 	rootCmd.Flags().StringVar(&MinAge, "min-age", "", "format: 20231203150908, means 2023-12-03 15:09:08")
 	rootCmd.Flags().StringVar(&MaxAge, "max-age", "", "format: 20231225235959, means 2023-12-25 23:59:59")

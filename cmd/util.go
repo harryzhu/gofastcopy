@@ -77,6 +77,14 @@ func FlagsValidate() error {
 		os.Exit(0)
 	}
 
+	if MinSizeMB >= 0 {
+		MinSize = MinSizeMB << 20
+	}
+
+	if MaxSizeMB >= 0 {
+		MaxSize = MaxSizeMB << 20
+	}
+
 	if MinSize != -1 {
 		fmt.Println("file size: min: ", MinSize)
 	}
@@ -136,6 +144,11 @@ func GetChanFileToDisk(ele map[string]any) error {
 	fmode := ele["CopyMode"].(int)
 
 	DebugInfo("GetChanFileToDisk: fsrc = ", fsrc, ", fdst = ", fdst)
+
+	if IsDryRun {
+		fmt.Printf("%s ==> %s\n", fsrc, fdst)
+		return nil
+	}
 
 	dstDir := filepath.Dir(fdst)
 	//fmt.Println("dstDir:", dstDir)
@@ -492,11 +505,13 @@ func FastCopy() error {
 	close(chanFile)
 
 	fmt.Println("------------------------------------------------------------")
+	var allIgnoredFiles int
 	for k, v := range numSkip {
 		fmt.Printf("\n** Ignored: %20s: %10v", k, v)
+		allIgnoredFiles += v
 	}
 
-	fmt.Printf("\n\n** Files: Total: %d, Copied: %d MB, Speed: %d MB/s **\n", num, totalWriteSize>>20, totalSpeed>>20)
+	fmt.Printf("\n\n** Files: Total: %d, Copied: %d, Write: %d MB, Speed: %d MB/s **\n", num, (num - allIgnoredFiles), totalWriteSize>>20, totalSpeed>>20)
 	return nil
 }
 
