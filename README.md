@@ -1,6 +1,5 @@
 # gofastcopy
 
-## Summary
 批量复制大量小文件的加速工具，速度快于 `rsync` 、 `robocopy`
 
 ## 原理
