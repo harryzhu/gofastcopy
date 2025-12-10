@@ -21,7 +21,7 @@
 
 从SSD移动硬盘文件夹A复制到同一块SSD移动硬盘文件夹B：
 
-```Bash
+```Python
 rsync 需要 261 秒，
 gofastcopy 需要 135 秒，快了 126 秒
 #
@@ -32,7 +32,7 @@ gofastcopy 需要 135 秒，快了 126 秒
 
 从机械移动硬盘文件夹A复制到同一块机械移动硬盘文件夹B：
 
-```Bash
+```Python
 rsync 需要 1025 秒，
 gofastcopy 需要 797 秒，快了 228 秒
 #
@@ -44,7 +44,7 @@ gofastcopy 需要 797 秒，快了 228 秒
 
 1）跨盘复制，固态到固态：
 
-```Bash
+```Python
 robocopy 需要 92 秒，
 gofastcopy 需要 83 秒， 快了 9 秒
 #
@@ -79,8 +79,9 @@ gofastcopy  --serial 需要 251 秒，比 rsync 快了 26 秒
 # 依照机械硬盘的特点，使用串行读取，即可避免无用功。
 #
 # 所以加上 --serial 参数即可明显提速。
-# 对比测试：
-# 279.5GB，98，974个文件
+#
+#
+对比测试：279.5GB，98，974个文件
 # ./gofastcopy 
 # 加上 --serial 参数， 耗时 2790 秒
 # 不加 --serial 参数， 耗时 4619 秒, 多了 1829 秒（即30分钟）
@@ -92,7 +93,8 @@ gofastcopy  --serial 需要 251 秒，比 rsync 快了 26 秒
 
 ## Usage
 ### 打开终端，运行
-```Bash
+```Python
+
 ./gofastcopy --source-dir="/path/to/source" --target-dir="/path/to/target"
 
 # --debug 默认 false ： 是否显示各种调试信息
