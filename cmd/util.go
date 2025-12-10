@@ -428,7 +428,11 @@ func FastCopy() error {
 
 			return nil
 		})
-		fmt.Printf(" ...%10d, %10d, %20dMB/s\r", len(chanFile), num, totalSpeed>>20)
+		if IsSerial {
+			fmt.Printf(" %s %10d\r", ":::", num)
+		} else {
+			fmt.Printf(" %s %10d, %10d, %20dMB/s\r", ":::", len(chanFile), num, totalSpeed>>20)
+		}
 
 		copyDone := make(map[string]any)
 		copyDone["_COPYSTATUS"] = "DONE"
@@ -450,7 +454,11 @@ func FastCopy() error {
 		allIgnoredFiles += v
 	}
 
-	fmt.Printf("\n\n** Files: Total: %d, Copied: %d, Write: %d MB, Speed: %d MB/s **\n", num, (num - allIgnoredFiles), totalWriteSize>>20, totalSpeed>>20)
+	if IsSerial {
+		fmt.Printf("\n\n** Files: Total: %d, Copied: %d **\n", num, (num - allIgnoredFiles))
+	} else {
+		fmt.Printf("\n\n** Files: Total: %d, Copied: %d, Write: %d MB, Speed: %d MB/s **\n", num, (num - allIgnoredFiles), totalWriteSize>>20, totalSpeed>>20)
+	}
 	return nil
 }
 
