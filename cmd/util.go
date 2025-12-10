@@ -274,9 +274,15 @@ func FastCopy() error {
 		numGet := int32(0)
 
 		for {
-			if ReadWriteSingleHDDSwitch == 20 && IsAllReadDone == false && IsInSingleHDD == true {
-				//fmt.Printf(".reading...\r")
-				continue
+			if IsInSingleHDD {
+				if ReadWriteSingleHDDSwitch == 20 {
+					//fmt.Printf(".reading...\r")
+					continue
+				}
+
+				if IsAllReadDone == false {
+					continue
+				}
 			}
 
 			cf := <-chanFile
@@ -330,19 +336,30 @@ func FastCopy() error {
 		numSend := int32(0)
 
 		filepath.Walk(SourceDir, func(fpath string, info os.FileInfo, err error) error {
-			if ReadWriteSingleHDDSwitch == 10 && IsAllReadDone == false && IsInSingleHDD == true {
-				// fmt.Printf(" writing...\r")
-				// release disk
-				for {
-					if ReadWriteSingleHDDSwitch != 10 || ReadWriteSingleHDDSwitch == 0 {
-						break
-					}
+			if IsInSingleHDD == true {
+				if ReadWriteSingleHDDSwitch == 10 {
+					// fmt.Printf(" writing...\r")
+					// release disk
+					for {
+						if ReadWriteSingleHDDSwitch != 10 {
+							break
+						}
 
-					if len(chanFile) == 0 {
-						break
+						if ReadWriteSingleHDDSwitch == 0 {
+							break
+						}
+
+						if len(chanFile) == 0 {
+							break
+						}
+
+						if IsAllReadDone {
+							break
+						}
 					}
 				}
 			}
+
 			if err != nil {
 				PrintError("FastCopy: walk", err)
 				return err
