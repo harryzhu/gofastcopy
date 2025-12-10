@@ -56,7 +56,8 @@ gofastcopy 需要 83 秒， 快了 9 秒
 
 1）跨盘复制，机械到固态
 
-在`Mac mini M4`上，从HDD移动机械硬盘复制到SSD移动硬盘：
+在`Mac mini M4`上，从HDD移动机械硬盘复制到SSD移动硬盘, 默认的并行模式性能更差：
+
 解决方案： 使用 `--serial` 加速
 
 ```Bash
