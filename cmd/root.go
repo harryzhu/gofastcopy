@@ -31,7 +31,7 @@ var (
 	ThreadNum         int
 	IsWithLimitMemory bool
 	IsWithTimeUTC     bool
-	IsInSingleHDD     bool
+	IsSerial          bool
 	//
 )
 
@@ -88,7 +88,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&IsDryRun, "dry-run", false, "if true, will not copy the file, just print the file on console")
 	rootCmd.PersistentFlags().BoolVar(&IsWithLimitMemory, "with-limit-memory", false, "run with low momery, task will be forced to 4 threads")
 	rootCmd.PersistentFlags().BoolVar(&IsWithTimeUTC, "with-time-utc", false, "use UTC timezone with parameter --min-age / --max-age")
-	rootCmd.PersistentFlags().BoolVar(&IsInSingleHDD, "in-single-hdd", false, "only for massive small files copy on a single low speed hard disk")
+	rootCmd.PersistentFlags().BoolVar(&IsSerial, "serial", false, "optimization for hard disk, not for ssd")
 	//
 	rootCmd.Flags().BoolVar(&IsIgnoreDotFile, "ignore-dot-file", true, "ignore the file if its file name starts with dot(.), i.e.: .DS_Store")
 	rootCmd.Flags().BoolVar(&IsIgnoreEmptyFolder, "ignore-empty-folder", true, "ignore the folder if it contains nothing")

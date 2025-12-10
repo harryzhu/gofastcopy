@@ -106,6 +106,7 @@ func FlagsValidate() error {
 	fmt.Println("ignore dot files: ", IsIgnoreDotFile)
 	fmt.Println("ignore empty folder: ", IsIgnoreEmptyFolder)
 	fmt.Println("overwrite existing files: ", IsOverwrite)
+	fmt.Println("serial: ", IsSerial)
 	fmt.Println("threads: ", GetThreadNum())
 	fmt.Println("Time: ", time.Now().Format("2006-01-02 15:04:05"))
 
@@ -145,11 +146,6 @@ func GetChanFileToDisk(ele map[string]any) error {
 
 	DebugInfo("GetChanFileToDisk: fsrc = ", fsrc, ", fdst = ", fdst)
 
-	if IsDryRun {
-		fmt.Printf("%s ==> %s\n", fsrc, fdst)
-		return nil
-	}
-
 	dstDir := filepath.Dir(fdst)
 	//fmt.Println("dstDir:", dstDir)
 	MakeDirs(dstDir)
@@ -157,7 +153,14 @@ func GetChanFileToDisk(ele map[string]any) error {
 	var err error
 	if fmode == 1 {
 		err = os.WriteFile(fdst, fdata, finfo.Mode())
-		PrintError("GetChanFileToDisk", err)
+		PrintError("GetChanFileToDisk: os.WriteFile", err)
+
+		err = os.Chtimes(fdst, finfo.ModTime(), finfo.ModTime())
+		PrintError("GetChanFileToDisk: os.Chtimes", err)
+
+		err = os.Chmod(fdst, finfo.Mode())
+		PrintError("GetChanFileToDisk: os.Chmod", err)
+
 		return err
 	}
 
@@ -190,15 +193,7 @@ func FastCopy() error {
 	totalSpeed := int64(0)
 	//
 	var IsAllRWDone bool
-	var IsAllReadDone bool
-	var ReadWriteSingleHDDSwitch int = 0
 	//
-	if IsWithLimitMemory == true || qcap < 20 {
-		IsInSingleHDD = false
-		DebugInfo("FastCopy: IsInSingleHDD", IsInSingleHDD)
-		DebugInfo("FastCopy: InSingleHDD will be disabled when --with-limit-memory is true or threads < 16")
-	}
-
 	wg := sync.WaitGroup{}
 
 	wg.Add(3)
@@ -206,59 +201,19 @@ func FastCopy() error {
 	go func() error {
 		defer wg.Done()
 
-		if IsInSingleHDD == false {
-			return nil
-		}
-		var lenChanFile int
-		var RWswitch int
-		var rwThreshold int
-
-		if IsInSingleHDD {
-			rwThreshold = int(float32(qcap)*float32(0.8) + float32(1.0))
-			if rwThreshold < 20 {
-				rwThreshold = 20
-			}
-			if rwThreshold > qcap {
-				rwThreshold = qcap - 1
-			}
-			fmt.Println("ReadWriteThreshold:", rwThreshold)
-		}
-
 		for {
 			if IsAllRWDone == true {
-				ReadWriteSingleHDDSwitch = 0
 				break
 			}
 
-			lenChanFile = len(chanFile)
-			// 10: Write
-			// 20: Read
-			if rwThreshold != 0 && lenChanFile >= rwThreshold {
-				RWswitch = 10
-			} else {
-				RWswitch = 20
-			}
-
-			if lenChanFile == 0 {
-				RWswitch = 0
-			}
-
-			if IsAllReadDone == true {
-				RWswitch = 10
-			}
-
-			if num > 10 && num%20 == 0 || ReadWriteSingleHDDSwitch != RWswitch {
-				if RWswitch == 20 {
-					fmt.Printf(" %s %10d, %10d, %20dMB/s\r", Green("\u0052\u0052\u0052"), len(chanFile), num, totalSpeed>>20)
-				} else if RWswitch == 10 {
-					fmt.Printf(" %s %10d, %10d, %20dMB/s\r", Red("\u0057\u0057\u0057"), len(chanFile), num, totalSpeed>>20)
+			if num > 10 && num%50 == 0 {
+				if IsSerial {
+					fmt.Printf(" %s %10d\r", ":::", num)
 				} else {
-					fmt.Printf(" %s %10d, %10d, %20dMB/s\r", "\u003A\u003A\u003A", len(chanFile), num, totalSpeed>>20)
+					fmt.Printf(" %s %10d, %10d, %20dMB/s\r", ":::", len(chanFile), num, totalSpeed>>20)
 				}
 
 			}
-
-			ReadWriteSingleHDDSwitch = RWswitch
 		}
 		return nil
 	}()
@@ -274,17 +229,6 @@ func FastCopy() error {
 		numGet := int32(0)
 
 		for {
-			if IsInSingleHDD {
-				if ReadWriteSingleHDDSwitch == 20 {
-					//fmt.Printf(".reading...\r")
-					continue
-				}
-
-				if IsAllReadDone == false {
-					continue
-				}
-			}
-
 			cf := <-chanFile
 			if val, ok := cf["_COPYSTATUS"]; ok {
 				IsAllRWDone = true
@@ -330,36 +274,10 @@ func FastCopy() error {
 	go func() error {
 		defer wg.Done()
 
-		IsAllReadDone = false
-
 		wgSendChanFile := sync.WaitGroup{}
 		numSend := int32(0)
 
 		filepath.Walk(SourceDir, func(fpath string, info os.FileInfo, err error) error {
-			if IsInSingleHDD == true {
-				if ReadWriteSingleHDDSwitch == 10 {
-					// fmt.Printf(" writing...\r")
-					// release disk
-					for {
-						if ReadWriteSingleHDDSwitch != 10 {
-							break
-						}
-
-						if ReadWriteSingleHDDSwitch == 0 {
-							break
-						}
-
-						if len(chanFile) == 0 {
-							break
-						}
-
-						if IsAllReadDone {
-							break
-						}
-					}
-				}
-			}
-
 			if err != nil {
 				PrintError("FastCopy: walk", err)
 				return err
@@ -388,9 +306,6 @@ func FastCopy() error {
 			}
 
 			num++
-			if IsInSingleHDD == false && num%20 == 0 {
-				fmt.Printf(" %s %10d, %10d, %20dMB/s\r", "\u003A\u003A\u003A", len(chanFile), num, totalSpeed>>20)
-			}
 
 			if FileExt != "" {
 				fext := strings.ToLower(filepath.Ext(fpath))
@@ -452,7 +367,6 @@ func FastCopy() error {
 			targetPath := strings.Replace(fpath, SourceDir, TargetDir, 1)
 			//DebugInfo("FastCopy: targetPath", targetPath)
 
-			//
 			_, err = os.Stat(fpath)
 			if err != nil {
 				return nil
@@ -464,6 +378,16 @@ func FastCopy() error {
 					numSkip["skip_exists"]++
 					return nil
 				}
+			}
+
+			if IsDryRun {
+				fmt.Printf("%s ==> %s\n", fpath, targetPath)
+				return nil
+			}
+
+			if IsSerial {
+				CopyFile(fpath, targetPath)
+				return nil
 			}
 
 			atomic.AddInt32(&numSend, 1)
@@ -512,8 +436,6 @@ func FastCopy() error {
 		//
 		wgSendChanFile.Wait()
 
-		IsAllReadDone = true
-
 		return nil
 	}()
 
@@ -543,6 +465,8 @@ func CopyFile(src, dst string) error {
 	defer srcFileHandler.Close()
 
 	dstTemp := dst + ".ing"
+
+	MakeDirs(filepath.Dir(dstTemp))
 
 	dstFileHandler, err := os.Create(dstTemp)
 	if err != nil {
