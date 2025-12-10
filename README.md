@@ -16,7 +16,7 @@
 
 ## gofastcopy 性能更好
 
-在Mac mini M4上，12，221个文件， 33，698 MB，
+在Mac mini M4上：
 
 1）同一块固态盘内复制
 
