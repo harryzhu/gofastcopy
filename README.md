@@ -91,9 +91,9 @@ gofastcopy  --serial 需要 251 秒，比 rsync 快了 26 秒
 
 
 ## Usage
-### 重新打开终端，运行
+### 打开终端，运行
 ```Bash
-./gofastcopy
+./gofastcopy --source-dir="/path/to/source" --target-dir="/path/to/target"
 
 # --debug 默认 false ： 是否显示各种调试信息
 # --dry-run 默认 false ： 设置为 true 时，仅在控制台窗口显示将会复制的文件，不会实际写入文件
