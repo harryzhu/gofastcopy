@@ -121,6 +121,7 @@ gofastcopy  --serial 需要 251 秒，比 rsync 快了 26 秒
 # --ignore-dot-file 默认为 true ： 是否忽略点（.）开头的文件
 # --ignore-empty-folder 默认为 true ：是否忽略空文件夹
 # --overwrite 默认为 false ： 是否允许覆盖已经存在的文件
+# --purge 默认为 false ： 是否删除目标文件夹中存在但源文件夹中不存在的文件，即是否清理目标文件夹中多余的文件
 #
 # --with-limit-memory 默认为 false ： 低内存模式，并行任务固定为 4.
 # --with-time-utc 默认为 false ： max-age/min-age 比较时间时，默认使用本地时间，如果要使用UTC时区时间，此项设置为 true
