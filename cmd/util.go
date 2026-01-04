@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -13,9 +15,14 @@ import (
 	"time"
 )
 
-func FlagsValidate() error {
+func flagsValidate() error {
 	if SourceDir == "" || TargetDir == "" || SourceDir == TargetDir {
 		PrintError("gofastcopy", NewError("--source-dir=  --target-dir=  cannot be empty or same"))
+		os.Exit(0)
+	}
+
+	if strings.HasPrefix(TargetDir, strings.TrimRight(SourceDir, "/")+"/") {
+		PrintError("gofastcopy", NewError("--target-dir=  cannot be in --source-dir= "))
 		os.Exit(0)
 	}
 
@@ -107,13 +114,14 @@ func FlagsValidate() error {
 	fmt.Println("ignore empty folder: ", IsIgnoreEmptyFolder)
 	fmt.Println("overwrite existing files: ", IsOverwrite)
 	fmt.Println("serial: ", IsSerial)
-	fmt.Println("threads: ", GetThreadNum())
+	fmt.Println("purge: ", IsPurge)
+	fmt.Println("threads: ", getThreadNum())
 	fmt.Println("Time: ", time.Now().Format("2006-01-02 15:04:05"))
 
 	return nil
 }
 
-func SendFileToChanFile(srcPath string, dstPath string, info os.FileInfo, copyMode int) (ele map[string]any, err error) {
+func sendFileToChanFile(srcPath string, dstPath string, info os.FileInfo, copyMode int) (ele map[string]any, err error) {
 	srcPath = ToUnixSlash(srcPath)
 	dstPath = ToUnixSlash(dstPath)
 
@@ -137,7 +145,7 @@ func SendFileToChanFile(srcPath string, dstPath string, info os.FileInfo, copyMo
 	return ele, nil
 }
 
-func GetChanFileToDisk(ele map[string]any) error {
+func getChanFileToDisk(ele map[string]any) error {
 	fsrc := ele["srcPath"].(string)
 	fdst := ele["dstPath"].(string)
 	finfo := ele["FileInfo"].(os.FileInfo)
@@ -165,7 +173,7 @@ func GetChanFileToDisk(ele map[string]any) error {
 	}
 
 	if fmode == 0 || fdata == nil {
-		err = CopyFile(fsrc, fdst)
+		err = copyFile(fsrc, fdst)
 		PrintError("GetChanFileToDisk", err)
 		return err
 	}
@@ -173,7 +181,7 @@ func GetChanFileToDisk(ele map[string]any) error {
 	return nil
 }
 
-func FastCopy() error {
+func fastCopy() error {
 	var num int = 0
 	var numSkip map[string]int = make(map[string]int)
 	numSkip["skip_dot_file"] = 0
@@ -185,7 +193,7 @@ func FastCopy() error {
 	numSkip["skip_exclude_dir"] = 0
 	numSkip["skip_exists"] = 0
 
-	qcap := GetThreadNum()
+	qcap := getThreadNum()
 
 	var chanFile chan map[string]any = make(chan map[string]any, qcap)
 
@@ -246,7 +254,7 @@ func FastCopy() error {
 					atomic.AddInt32(&numGet, -1)
 					wgGetChanFile.Done()
 				}()
-				GetChanFileToDisk(cf)
+				getChanFileToDisk(cf)
 			}(cf)
 
 			curNumGet := atomic.LoadInt32(&numGet)
@@ -276,6 +284,8 @@ func FastCopy() error {
 
 		wgSendChanFile := sync.WaitGroup{}
 		numSend := int32(0)
+
+		fextreg := regexp.MustCompile("(?i)" + FileExt)
 
 		filepath.Walk(SourceDir, func(fpath string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -308,8 +318,7 @@ func FastCopy() error {
 			num++
 
 			if FileExt != "" {
-				fext := strings.ToLower(filepath.Ext(fpath))
-				if fext != strings.ToLower(FileExt) {
+				if fextreg.MatchString(filepath.Ext(fpath)) == false {
 					numSkip["skip_file_ext"]++
 					return nil
 				}
@@ -386,7 +395,7 @@ func FastCopy() error {
 			}
 
 			if IsSerial {
-				CopyFile(fpath, targetPath)
+				copyFile(fpath, targetPath)
 				return nil
 			}
 
@@ -410,7 +419,7 @@ func FastCopy() error {
 					fmode = 0
 				}
 
-				ele, err := SendFileToChanFile(fpath, targetPath, info, fmode)
+				ele, err := sendFileToChanFile(fpath, targetPath, info, fmode)
 				if err != nil {
 					return err
 				}
@@ -434,11 +443,11 @@ func FastCopy() error {
 			fmt.Printf(" %s %10d, %10d, %20dMB/s\r", ":::", len(chanFile), num, totalSpeed>>20)
 		}
 
+		wgSendChanFile.Wait()
+		//
 		copyDone := make(map[string]any)
 		copyDone["_COPYSTATUS"] = "DONE"
 		chanFile <- copyDone
-		//
-		wgSendChanFile.Wait()
 
 		return nil
 	}()
@@ -462,7 +471,30 @@ func FastCopy() error {
 	return nil
 }
 
-func CopyFile(src, dst string) error {
+func purgeTargetDir() error {
+	var e1, e2 error
+	SourceDir = ToUnixSlash(SourceDir)
+	TargetDir = ToUnixSlash(TargetDir)
+	filepath.WalkDir(TargetDir, func(dstPath string, finfo fs.DirEntry, err error) error {
+		if err != nil {
+			PrintError("purgeTargetDir: walkdir", err)
+			return err
+		}
+
+		dstPath = ToUnixSlash(dstPath)
+
+		srcPath := strings.Replace(dstPath, strings.TrimRight(TargetDir, "/"), strings.TrimRight(SourceDir, "/"), 1)
+		if _, e1 = os.Stat(srcPath); e1 != nil {
+			e2 = os.Remove(dstPath)
+			PrintError("purgeTargetDir:os.Remove", e2)
+		}
+
+		return nil
+	})
+	return nil
+}
+
+func copyFile(src, dst string) error {
 	src = ToUnixSlash(src)
 	dst = ToUnixSlash(dst)
 	srcFileHandler, err := os.Open(src)
@@ -511,19 +543,7 @@ func CopyFile(src, dst string) error {
 	return nil
 }
 
-func MakeDirs(dpath string) error {
-	dpath = ToUnixSlash(dpath)
-	_, err := os.Stat(dpath)
-	if err != nil {
-		DebugInfo("MakeDirs", dpath)
-		err = os.MkdirAll(dpath, os.ModePerm)
-		PrintError("MakeDirs:MkdirAll", err)
-		return err
-	}
-	return nil
-}
-
-func GetThreadNum() int {
+func getThreadNum() int {
 	if ThreadNum > 0 {
 		return ThreadNum
 	}
@@ -543,6 +563,18 @@ func GetThreadNum() int {
 	return qcap
 }
 
+func MakeDirs(dpath string) error {
+	dpath = ToUnixSlash(dpath)
+	_, err := os.Stat(dpath)
+	if err != nil {
+		DebugInfo("MakeDirs", dpath)
+		err = os.MkdirAll(dpath, os.ModePerm)
+		PrintError("MakeDirs:MkdirAll", err)
+		return err
+	}
+	return nil
+}
+
 func Int2Str(n int) string {
 	return strconv.Itoa(n)
 }
@@ -557,7 +589,7 @@ func ToUnixSlash(s string) string {
 }
 
 func TimeStr2Unix(s string) int64 {
-	layout := "20060102150405"
+	layout := "2006-01-02,15:04:05"
 	var parsedTime time.Time
 	var err error
 

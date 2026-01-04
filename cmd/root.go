@@ -1,6 +1,3 @@
-/*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
@@ -16,6 +13,7 @@ var (
 	IsIgnoreDotFile     bool
 	IsIgnoreEmptyFolder bool
 	IsOverwrite         bool
+	IsPurge             bool
 	IsDryRun            bool
 	MaxSize             int64
 	MinSize             int64
@@ -56,12 +54,16 @@ var rootCmd = &cobra.Command{
 		ExcludeDir = ToUnixSlash(ExcludeDir)
 
 		fmt.Println("-----")
-		FlagsValidate()
+		flagsValidate()
 		fmt.Println("-----")
 
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		FastCopy()
+		if IsPurge {
+			purgeTargetDir()
+		}
+
+		fastCopy()
 
 		//
 		timeStop = GetNowUnix()
@@ -93,12 +95,13 @@ func init() {
 	rootCmd.Flags().BoolVar(&IsIgnoreDotFile, "ignore-dot-file", true, "ignore the file if its file name starts with dot(.), i.e.: .DS_Store")
 	rootCmd.Flags().BoolVar(&IsIgnoreEmptyFolder, "ignore-empty-folder", true, "ignore the folder if it contains nothing")
 	rootCmd.Flags().BoolVar(&IsOverwrite, "overwrite", false, "allow to overwrite the existing files")
+	rootCmd.Flags().BoolVar(&IsPurge, "purge", false, "delete files in --target-dir but NOT in --source-dir")
 	//
 	rootCmd.Flags().StringVar(&SourceDir, "source-dir", "", "source folder")
 	rootCmd.Flags().StringVar(&TargetDir, "target-dir", "", "destination folder")
 	//
 	rootCmd.Flags().StringVar(&ExcludeDir, "exclude-dir", "", "will not copy the file if it is in the exclude-dir")
-	rootCmd.Flags().StringVar(&FileExt, "file-ext", "", "file type filter, i.e.: .mp4 or .png or .jpg ... ")
+	rootCmd.Flags().StringVar(&FileExt, "ext", "", "file type filter, i.e.: .mp4 or .png or .jpg ... ")
 	//
 	rootCmd.Flags().Int64Var(&MinSize, "min-size", -1, "from the minimum file size")
 	rootCmd.Flags().Int64Var(&MaxSize, "max-size", -1, "to the maximum file size")
@@ -106,8 +109,8 @@ func init() {
 	rootCmd.Flags().Int64Var(&MaxSizeMB, "max-size-mb", -1, "i.e.: 32 means 32MB, will replace --max-size=32*1024*1024 automatically")
 
 	//
-	rootCmd.Flags().StringVar(&MinAge, "min-age", "", "format: 20231203150908, means 2023-12-03 15:09:08")
-	rootCmd.Flags().StringVar(&MaxAge, "max-age", "", "format: 20231225235959, means 2023-12-25 23:59:59")
+	rootCmd.Flags().StringVar(&MinAge, "min-age", "", "format: 2023-12-03,15:09:08, means 2023-12-03 15:09:08")
+	rootCmd.Flags().StringVar(&MaxAge, "max-age", "", "format: 2023-12-25,23:59:59, means 2023-12-25 23:59:59")
 	//
 	rootCmd.Flags().IntVar(&ThreadNum, "threads", 0, "force the concurrent tasks, more threads, more memory required")
 	//

@@ -1,7 +1,7 @@
 .DS_Store
 dist/
 build.sh
-build_all.sh
+local_build.sh
 *.exe
 *.zip
 Thumbs.db
