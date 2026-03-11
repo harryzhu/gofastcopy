@@ -15,6 +15,14 @@ import (
 	"time"
 )
 
+type CopyElement struct {
+	Fsrc     string
+	Fdst     string
+	Finfo    os.FileInfo
+	Fdata    []byte
+	CopyMode int
+}
+
 func flagsValidate() error {
 	if SourceDir == "" || TargetDir == "" || SourceDir == TargetDir {
 		PrintError("gofastcopy", NewError("--source-dir=  --target-dir=  cannot be empty or same"))
@@ -121,11 +129,9 @@ func flagsValidate() error {
 	return nil
 }
 
-func sendFileToChanFile(srcPath string, dstPath string, info os.FileInfo, copyMode int) (ele map[string]any, err error) {
+func sendFileToChanFile(srcPath string, dstPath string, info os.FileInfo, copyMode int) (ele CopyElement, err error) {
 	srcPath = ToUnixSlash(srcPath)
 	dstPath = ToUnixSlash(dstPath)
-
-	ele = make(map[string]any)
 
 	var fdata []byte
 	if copyMode == 1 {
@@ -136,21 +142,21 @@ func sendFileToChanFile(srcPath string, dstPath string, info os.FileInfo, copyMo
 		}
 	}
 
-	ele["srcPath"] = srcPath
-	ele["dstPath"] = dstPath
-	ele["FileInfo"] = info
-	ele["FileData"] = fdata
-	ele["CopyMode"] = copyMode
+	ele.Fsrc = srcPath
+	ele.Fdst = dstPath
+	ele.Finfo = info
+	ele.Fdata = fdata
+	ele.CopyMode = copyMode
 
 	return ele, nil
 }
 
-func getChanFileToDisk(ele map[string]any) error {
-	fsrc := ele["srcPath"].(string)
-	fdst := ele["dstPath"].(string)
-	finfo := ele["FileInfo"].(os.FileInfo)
-	fdata := ele["FileData"].([]byte)
-	fmode := ele["CopyMode"].(int)
+func getChanFileToDisk(ele CopyElement) error {
+	fsrc := ele.Fsrc
+	fdst := ele.Fdst
+	finfo := ele.Finfo
+	fdata := ele.Fdata
+	fmode := ele.CopyMode
 
 	DebugInfo("GetChanFileToDisk: fsrc = ", fsrc, ", fdst = ", fdst)
 
@@ -195,7 +201,9 @@ func fastCopy() error {
 
 	qcap := getThreadNum()
 
-	var chanFile chan map[string]any = make(chan map[string]any, qcap)
+	//var chanFile chan map[string]any = make(chan map[string]any, qcap)
+
+	var chanFile chan CopyElement = make(chan CopyElement, qcap)
 
 	totalWriteSize := int64(0)
 	totalSpeed := int64(0)
@@ -238,18 +246,18 @@ func fastCopy() error {
 
 		for {
 			cf := <-chanFile
-			if val, ok := cf["_COPYSTATUS"]; ok {
+			if cf.CopyMode == -1 {
 				IsAllRWDone = true
-				DebugInfo("_COPYSTATUS:", val)
+				DebugInfo("_COPYSTATUS:", "DONE")
 				break
 			}
 
-			totalWriteSize += cf["FileInfo"].(os.FileInfo).Size()
+			totalWriteSize += cf.Finfo.Size()
 
 			atomic.AddInt32(&numGet, 1)
 			wgGetChanFile.Add(1)
 
-			go func(cf map[string]any) {
+			go func(cf CopyElement) {
 				defer func() {
 					atomic.AddInt32(&numGet, -1)
 					wgGetChanFile.Done()
@@ -445,8 +453,13 @@ func fastCopy() error {
 
 		wgSendChanFile.Wait()
 		//
-		copyDone := make(map[string]any)
-		copyDone["_COPYSTATUS"] = "DONE"
+		var copyDone CopyElement
+
+		copyDone.Fsrc = ""
+		copyDone.Fdst = ""
+		copyDone.Fdata = nil
+		copyDone.CopyMode = -1
+		// CopyMode = -1 means COPY STATUS = Done
 		chanFile <- copyDone
 
 		return nil
