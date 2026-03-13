@@ -23,7 +23,6 @@ type CopyElement struct {
 	Fsrc     string
 	Fdst     string
 	Finfo    os.FileInfo
-	Fdata    []byte
 	CopyMode int
 }
 
@@ -35,23 +34,10 @@ func updateTotalSpeed() {
 	}
 }
 
-func sendFileToChanFile(srcPath string, dstPath string, info os.FileInfo, copyMode int) (ele CopyElement, err error) {
-	srcPath = ToUnixSlash(srcPath)
-	dstPath = ToUnixSlash(dstPath)
-
-	var fdata []byte
-	if copyMode == 1 {
-		fdata, err = os.ReadFile(srcPath)
-		if err != nil {
-			PrintError("SendFileToChanFile: os.ReadFile", err)
-			return ele, err
-		}
-	}
-
-	ele.Fsrc = srcPath
-	ele.Fdst = dstPath
-	ele.Finfo = info
-	ele.Fdata = fdata
+func sendFileToChanFile(srcPath string, dstPath string, finfo os.FileInfo, copyMode int) (ele CopyElement, err error) {
+	ele.Fsrc = ToUnixSlash(srcPath)
+	ele.Fdst = ToUnixSlash(dstPath)
+	ele.Finfo = finfo
 	ele.CopyMode = copyMode
 
 	return ele, nil
@@ -60,37 +46,12 @@ func sendFileToChanFile(srcPath string, dstPath string, info os.FileInfo, copyMo
 func getChanFileToDisk(ele CopyElement) error {
 	fsrc := ele.Fsrc
 	fdst := ele.Fdst
-	finfo := ele.Finfo
-	fdata := ele.Fdata
-	fmode := ele.CopyMode
 
 	DebugInfo("GetChanFileToDisk: fsrc = ", fsrc, ", fdst = ", fdst)
 
-	dstDir := filepath.Dir(fdst)
-	//fmt.Println("dstDir:", dstDir)
-	MakeDirs(dstDir)
-
-	var err error
-	if fmode == 1 && fdata != nil {
-		err = os.WriteFile(fdst, fdata, finfo.Mode())
-		PrintError("GetChanFileToDisk: os.WriteFile", err)
-
-		err = os.Chtimes(fdst, finfo.ModTime(), finfo.ModTime())
-		PrintError("GetChanFileToDisk: os.Chtimes", err)
-
-		err = os.Chmod(fdst, finfo.Mode())
-		PrintError("GetChanFileToDisk: os.Chmod", err)
-
-		return err
-	}
-
-	if fmode == 0 || fdata == nil {
-		err = copyFile(fsrc, fdst)
-		PrintError("GetChanFileToDisk", err)
-		return err
-	}
-
-	return nil
+	_, err := copyFile(fsrc, fdst)
+	PrintError("GetChanFileToDisk", err)
+	return err
 }
 
 func fastCopy() error {
@@ -123,9 +84,9 @@ func fastCopy() error {
 				break
 			}
 
-			if num > 10 && num%50 == 0 {
+			if num > 99 && num%100 == 0 {
 				if IsSerial {
-					fmt.Printf(" %s %10d\r", ":::", num)
+					fmt.Printf(" %s %10d, %20dMB/s\r", ":::", num, totalSpeed>>20)
 				} else {
 					fmt.Printf(" %s %10d, %10d, %20dMB/s\r", ":::", len(chanFile), num, totalSpeed>>20)
 				}
@@ -179,12 +140,9 @@ func fastCopy() error {
 	go func() error {
 		defer wg.Done()
 
-		wgSendChanFile := sync.WaitGroup{}
-		numSend := int32(0)
-
 		fextreg := regexp.MustCompile("(?i)" + FileExt)
 
-		filepath.Walk(SourceDir, func(fpath string, info os.FileInfo, err error) error {
+		filepath.Walk(SourceDir, func(fpath string, finfo os.FileInfo, err error) error {
 			if err != nil {
 				PrintError("FastCopy: walk", err)
 				return err
@@ -192,7 +150,7 @@ func fastCopy() error {
 
 			fpath = ToUnixSlash(fpath)
 
-			if info.IsDir() {
+			if finfo.IsDir() {
 				if IsIgnoreEmptyFolder {
 					return nil
 				}
@@ -201,14 +159,7 @@ func fastCopy() error {
 				_, err := os.Stat(D2Dir)
 				if err != nil {
 					MakeDirs(D2Dir)
-					err = os.Chtimes(D2Dir, info.ModTime(), info.ModTime())
-					PrintError("FastCopy", err)
-
-					err = os.Chmod(D2Dir, info.Mode())
-					PrintError("FastCopy", err)
-					return err
 				}
-
 				return nil
 			}
 
@@ -229,14 +180,14 @@ func fastCopy() error {
 			}
 
 			if MinSize != -1 {
-				if info.Size() < MinSize {
+				if finfo.Size() < MinSize {
 					numSkip["skip_size_min"]++
 					return nil
 				}
 			}
 
 			if MaxSize != -1 {
-				if info.Size() > MaxSize {
+				if finfo.Size() > MaxSize {
 					numSkip["skip_size_max"]++
 					return nil
 				}
@@ -244,7 +195,7 @@ func fastCopy() error {
 
 			if MinAge != "" {
 				minAge := TimeStr2Unix(MinAge)
-				if info.ModTime().Unix() < minAge {
+				if finfo.ModTime().Unix() < minAge {
 					numSkip["skip_age_min"]++
 					return nil
 				}
@@ -252,7 +203,7 @@ func fastCopy() error {
 
 			if MaxAge != "" {
 				maxAge := TimeStr2Unix(MaxAge)
-				if info.ModTime().Unix() > maxAge {
+				if finfo.ModTime().Unix() > maxAge {
 					numSkip["skip_age_max"]++
 					return nil
 				}
@@ -292,63 +243,50 @@ func fastCopy() error {
 			}
 
 			if IsSerial {
-				copyFile(fpath, targetPath)
-				return nil
-			}
-
-			atomic.AddInt32(&numSend, 1)
-
-			wgSendChanFile.Add(1)
-			go func(fpath string, targetPath string, info os.FileInfo) error {
-				defer func() {
-					atomic.AddInt32(&numSend, -1)
-					wgSendChanFile.Done()
-				}()
-
-				fmode := int(0)
-				// 0: send path string
-				// 1: cache file data in memory
-				// -1: _COPYSTATUS = Done
-				if IsWithLimitMemory == false {
-					fmode = 1
-				}
-
-				if info.Size() > (16 << 20) {
-					fmode = 0
-				}
-
-				ele, err := sendFileToChanFile(fpath, targetPath, info, fmode)
+				fsize, err := copyFile(fpath, targetPath)
 				if err != nil {
+					PrintError("FastCopy: copyFile", err)
 					return err
 				}
 
-				chanFile <- ele
+				totalWriteSize += fsize
+				if num%10 == 0 {
+					updateTotalSpeed()
+				}
 				return nil
+			}
 
-			}(fpath, targetPath, info)
+			// fmode := int(0)
+			// 0: send path string
+			// 1: cache file data in memory
+			// -1: _COPYSTATUS = Done
 
-			curNumSend := atomic.LoadInt32(&numSend)
+			ele, err := sendFileToChanFile(fpath, targetPath, finfo, 0)
+			if err != nil {
+				PrintError("FastCopy: sendFileToChanFile", err)
+				return err
+			}
 
-			if curNumSend > int32(qcap-1) && curNumSend%int32(qcap) == 0 {
-				wgSendChanFile.Wait()
+			chanFile <- ele
+
+			if num%100 == 0 {
 				updateTotalSpeed()
 			}
 
 			return nil
 		})
+
 		if IsSerial {
 			fmt.Printf(" %s %10d\r", ":::", num)
 		} else {
 			fmt.Printf(" %s %10d, %10d, %20dMB/s\r", ":::", len(chanFile), num, totalSpeed>>20)
 		}
 
-		wgSendChanFile.Wait()
 		//
 		copyAllDone := CopyElement{}
 
 		copyAllDone.Fsrc = ""
 		copyAllDone.Fdst = ""
-		copyAllDone.Fdata = nil
 		copyAllDone.CopyMode = -1
 		// CopyMode = -1 means COPY STATUS = Done
 		chanFile <- copyAllDone
@@ -392,6 +330,39 @@ func purgeTargetDir() error {
 			e2 = os.Remove(dstPath)
 			PrintError("purgeTargetDir:os.Remove", e2)
 		}
+
+		return nil
+	})
+	return nil
+}
+
+func updateTargetDir() error {
+	var e1, e2 error
+	var srcInfo fs.FileInfo
+	SourceDir = ToUnixSlash(SourceDir)
+	TargetDir = ToUnixSlash(TargetDir)
+	filepath.WalkDir(TargetDir, func(dstPath string, finfo fs.DirEntry, err error) error {
+		if err != nil {
+			PrintError("updateTargetDir: walkdir", err)
+			return err
+		}
+
+		if finfo.IsDir() == false {
+			return nil
+		}
+
+		dstPath = ToUnixSlash(dstPath)
+
+		srcPath := strings.Replace(dstPath, strings.TrimRight(TargetDir, "/"), strings.TrimRight(SourceDir, "/"), 1)
+		srcInfo, e1 = os.Stat(srcPath)
+		if e1 != nil {
+			return e1
+		}
+		e2 = os.Chtimes(dstPath, srcInfo.ModTime(), srcInfo.ModTime())
+		PrintError("updateTargetDir: os.Chtimes", e2)
+
+		e2 = os.Chmod(dstPath, srcInfo.Mode())
+		PrintError("updateTargetDir: os.Chmod", e2)
 
 		return nil
 	})

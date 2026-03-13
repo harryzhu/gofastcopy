@@ -117,13 +117,13 @@ func flagsValidate() error {
 	return nil
 }
 
-func copyFile(src, dst string) error {
+func copyFile(src, dst string) (writeSize int64, err error) {
 	src = ToUnixSlash(src)
 	dst = ToUnixSlash(dst)
 	srcFileHandler, err := os.Open(src)
 	if err != nil {
 		PrintError("CopyFile: os.Open", err)
-		return err
+		return 0, err
 	}
 	defer srcFileHandler.Close()
 
@@ -134,7 +134,7 @@ func copyFile(src, dst string) error {
 	dstFileHandler, err := os.Create(dstTemp)
 	if err != nil {
 		PrintError("CopyFile: os.Create", err)
-		return err
+		return 0, err
 	}
 	defer dstFileHandler.Close()
 
@@ -143,27 +143,39 @@ func copyFile(src, dst string) error {
 	_, err = io.Copy(dstWriter, srcReader)
 	if err != nil {
 		PrintError("CopyFile: io.Copy", err)
-		return err
+		return 0, err
 	}
 
 	dstWriter.Flush()
 
 	finfo, err := srcFileHandler.Stat()
-	PrintError("CopyFile", err)
+	if err != nil {
+		PrintError("CopyFile", err)
+		return 0, err
+	}
 
 	err = os.Chtimes(dstTemp, finfo.ModTime(), finfo.ModTime())
-	PrintError("CopyFile: os.Chtimes", err)
+	if err != nil {
+		PrintError("CopyFile: os.Chtimes", err)
+		return 0, err
+	}
 
 	srcFileHandler.Close()
 	dstFileHandler.Close()
 
 	err = os.Rename(dstTemp, dst)
-	PrintError("CopyFile: os.Rename", err)
+	if err != nil {
+		PrintError("CopyFile: os.Rename", err)
+		return 0, err
+	}
 
 	err = os.Chmod(dst, finfo.Mode())
-	PrintError("CopyFile: os.Chmod", err)
+	if err != nil {
+		PrintError("CopyFile: os.Chmod", err)
+		return 0, err
+	}
 
-	return nil
+	return finfo.Size(), nil
 }
 
 func getThreadNum() int {

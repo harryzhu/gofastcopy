@@ -69,7 +69,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		fastCopy()
-
+		updateTargetDir()
 		//
 		timeStop = GetNowUnix()
 	},
