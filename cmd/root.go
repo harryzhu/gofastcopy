@@ -68,6 +68,8 @@ var rootCmd = &cobra.Command{
 			purgeTargetDir()
 		}
 
+		timeStart = GetNowUnix()
+
 		fastCopy()
 		updateTargetDir()
 		//

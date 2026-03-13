@@ -138,8 +138,10 @@ func copyFile(src, dst string) (writeSize int64, err error) {
 	}
 	defer dstFileHandler.Close()
 
+	//
 	srcReader := bufio.NewReader(srcFileHandler)
 	dstWriter := bufio.NewWriter(dstFileHandler)
+
 	_, err = io.Copy(dstWriter, srcReader)
 	if err != nil {
 		PrintError("CopyFile: io.Copy", err)

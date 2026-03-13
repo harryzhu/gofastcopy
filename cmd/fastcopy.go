@@ -96,11 +96,13 @@ func fastCopy() error {
 		return nil
 	}()
 
+	//chanFile
 	go func() error {
 		defer wg.Done()
 
 		wgGetChanFile := sync.WaitGroup{}
 		numGet := int32(0)
+		qcapInt32 := int32(qcap)
 
 		for {
 			cf := <-chanFile
@@ -125,7 +127,7 @@ func fastCopy() error {
 
 			curNumGet := atomic.LoadInt32(&numGet)
 
-			if curNumGet > int32(qcap-1) && curNumGet%int32(qcap) == 0 {
+			if curNumGet > qcapInt32 && curNumGet%qcapInt32 == 0 {
 				wgGetChanFile.Wait()
 				updateTotalSpeed()
 			}
