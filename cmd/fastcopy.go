@@ -85,6 +85,7 @@ func fastCopy() error {
 			}
 
 			if num > 99 && num%100 == 0 {
+				updateTotalSpeed()
 				if IsSerial {
 					fmt.Printf(" %s %10d, %20dMB/s\r", ":::", num, totalSpeed>>20)
 				} else {
@@ -129,7 +130,6 @@ func fastCopy() error {
 
 			if curNumGet > qcapInt32 && curNumGet%qcapInt32 == 0 {
 				wgGetChanFile.Wait()
-				updateTotalSpeed()
 			}
 
 		}
@@ -252,9 +252,6 @@ func fastCopy() error {
 				}
 
 				totalWriteSize += fsize
-				if num%10 == 0 {
-					updateTotalSpeed()
-				}
 				return nil
 			}
 
@@ -270,10 +267,6 @@ func fastCopy() error {
 			}
 
 			chanFile <- ele
-
-			if num%100 == 0 {
-				updateTotalSpeed()
-			}
 
 			return nil
 		})

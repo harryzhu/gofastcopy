@@ -69,7 +69,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		timeStart = GetNowUnix()
-
+		//
 		fastCopy()
 		updateTargetDir()
 		//
@@ -77,7 +77,7 @@ var rootCmd = &cobra.Command{
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
 		if timeStart > 0 && timeStop > 0 {
-			fmt.Printf("\n***** Elapse(sec): %v *****\n", (timeStop - timeStart))
+			fmt.Printf("\n***** Elapse: %v (sec) *****\n", (timeStop - timeStart))
 		}
 
 	},
