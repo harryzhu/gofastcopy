@@ -30,8 +30,9 @@ var (
 	ThreadNum         int
 	IsWithLimitMemory bool
 	IsWithTimeUTC     bool
+	IsWithMemStats    bool
 	IsSerial          bool
-	//
+	IsSIMD            bool
 )
 
 var (
@@ -50,13 +51,9 @@ var rootCmd = &cobra.Command{
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		timeStart = GetNowUnix()
 
-		SourceDir = ToUnixSlash(SourceDir)
-		TargetDir = ToUnixSlash(TargetDir)
-		ExcludeDir = ToUnixSlash(ExcludeDir)
-
-		SourceDir = strings.TrimRight(SourceDir, "/")
-		TargetDir = strings.TrimRight(TargetDir, "/")
-		ExcludeDir = strings.TrimRight(ExcludeDir, "/")
+		SourceDir = strings.TrimRight(ToUnixSlash(SourceDir), "/")
+		TargetDir = strings.TrimRight(ToUnixSlash(TargetDir), "/")
+		ExcludeDir = strings.TrimRight(ToUnixSlash(ExcludeDir), "/")
 
 		fmt.Println("-----")
 		flagsValidate()
@@ -95,9 +92,12 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&IsDebug, "debug", false, "if print debug info")
 	rootCmd.PersistentFlags().BoolVar(&IsDryRun, "dry-run", false, "if true, will not copy the file, just print the file on console")
-	rootCmd.PersistentFlags().BoolVar(&IsWithLimitMemory, "with-limit-memory", false, "run with low momery, task will be forced to 4 threads")
+	//
+	rootCmd.PersistentFlags().BoolVar(&IsWithLimitMemory, "with-mem-limit", false, "run with low momery, task will be forced to 4 threads")
 	rootCmd.PersistentFlags().BoolVar(&IsWithTimeUTC, "with-time-utc", false, "use UTC timezone with parameter --min-age / --max-age")
+	rootCmd.PersistentFlags().BoolVar(&IsWithMemStats, "with-mem-stats", false, "if print memory stats")
 	rootCmd.PersistentFlags().BoolVar(&IsSerial, "serial", false, "optimization for hard disk, not for ssd")
+	rootCmd.PersistentFlags().BoolVar(&IsSIMD, "simd", true, "if use SIMD to accelerate")
 	//
 	rootCmd.Flags().BoolVar(&IsIgnoreDotFile, "ignore-dot-file", false, "ignore the file if its file name starts with dot(.), i.e.: .DS_Store")
 	rootCmd.Flags().BoolVar(&IsIgnoreEmptyFolder, "ignore-empty-folder", false, "ignore the folder if it contains nothing")
@@ -120,4 +120,5 @@ func init() {
 	//
 	rootCmd.Flags().IntVar(&ThreadNum, "threads", 0, "force the concurrent tasks, more threads, more memory required")
 	//
+
 }

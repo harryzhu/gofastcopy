@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +8,15 @@ import (
 	"strconv"
 	"strings"
 	"time"
+)
+
+const (
+	MB uint64 = 1 << 20
+)
+
+var (
+	bufSize int = 64 << 10
+	bufPool *BufferPool
 )
 
 func flagsValidate() error {
@@ -26,6 +34,7 @@ func flagsValidate() error {
 	fmt.Printf("TargetDir: %v\n", TargetDir)
 	fmt.Printf("ExcludeDir: %v\n", ExcludeDir)
 	//
+
 	finfo, err := os.Stat(SourceDir)
 	if err != nil {
 		PrintError("gofastcopy", err)
@@ -106,20 +115,47 @@ func flagsValidate() error {
 		os.Exit(0)
 	}
 
+	cpuflags := getCPUFlags()
+	if IsSIMD {
+		if cpuflags == "" {
+			IsSIMD = false
+		}
+	}
+
+	if IsSerial || IsWithLimitMemory {
+		bufSize = 32 << 10
+	}
+
+	bufPool = NewBufferPool(bufSize, 4096)
+
 	fmt.Println("ignore dot files: ", IsIgnoreDotFile)
 	fmt.Println("ignore empty folder: ", IsIgnoreEmptyFolder)
 	fmt.Println("overwrite existing files: ", IsOverwrite)
 	fmt.Println("serial: ", IsSerial)
+	fmt.Println("simd: ", IsSIMD)
 	fmt.Println("purge: ", IsPurge)
+	fmt.Println("cpu: ", numCPU, cpuflags)
 	fmt.Println("threads: ", getThreadNum())
+	fmt.Println("buffer: ", bufSize)
 	fmt.Println("Time: ", time.Now().Format("2006-01-02 15:04:05"))
 
 	return nil
 }
 
-func copyFile(src, dst string) (writeSize int64, err error) {
-	src = ToUnixSlash(src)
-	dst = ToUnixSlash(dst)
+func copyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
+	if IsSIMD {
+		writeSize, err = simdCopyFile(src, dst, finfo)
+		if err == nil {
+			return writeSize, err
+		}
+	}
+
+	writeSize, err = regularCopyFile(src, dst, finfo)
+
+	return writeSize, err
+}
+
+func regularCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
 	srcFileHandler, err := os.Open(src)
 	if err != nil {
 		PrintError("CopyFile: os.Open", err)
@@ -127,7 +163,7 @@ func copyFile(src, dst string) (writeSize int64, err error) {
 	}
 	defer srcFileHandler.Close()
 
-	dstTemp := dst + ".ing"
+	dstTemp := strings.Join([]string{dst, "ing"}, ".")
 
 	MakeDirs(filepath.Dir(dstTemp))
 
@@ -138,27 +174,10 @@ func copyFile(src, dst string) (writeSize int64, err error) {
 	}
 	defer dstFileHandler.Close()
 
-	//
-	srcReader := bufio.NewReader(srcFileHandler)
-	dstWriter := bufio.NewWriter(dstFileHandler)
-
-	_, err = io.Copy(dstWriter, srcReader)
+	buf := make([]byte, bufSize)
+	_, err = io.CopyBuffer(dstFileHandler, srcFileHandler, buf)
 	if err != nil {
-		PrintError("CopyFile: io.Copy", err)
-		return 0, err
-	}
-
-	dstWriter.Flush()
-
-	finfo, err := srcFileHandler.Stat()
-	if err != nil {
-		PrintError("CopyFile", err)
-		return 0, err
-	}
-
-	err = os.Chtimes(dstTemp, finfo.ModTime(), finfo.ModTime())
-	if err != nil {
-		PrintError("CopyFile: os.Chtimes", err)
+		PrintError("CopyFile: io.CopyBuffer", err)
 		return 0, err
 	}
 
@@ -177,7 +196,57 @@ func copyFile(src, dst string) (writeSize int64, err error) {
 		return 0, err
 	}
 
+	err = os.Chtimes(dst, finfo.ModTime(), finfo.ModTime())
+	if err != nil {
+		PrintError("CopyFile: os.Chtimes", err)
+		return 0, err
+	}
+
 	return finfo.Size(), nil
+}
+
+func copyLink(src, dst string) error {
+	src = ToUnixSlash(src)
+	dst = ToUnixSlash(dst)
+
+	if _, err := os.Stat(dst); err == nil {
+		return nil
+	}
+
+	linfo, err := os.Lstat(src)
+	if err != nil {
+		PrintError("copyLink", err)
+		return err
+	}
+
+	if linfo.Mode()&os.ModeSymlink != 0 {
+		DebugInfo("copyLink", strings.TrimLeft(src, SourceDir), ": is a symblink")
+		srcLinkTarget, err := os.Readlink(src)
+		if err != nil {
+			PrintError("copyLink", err)
+			return err
+		}
+		DebugInfo("copyLink", src, " -> ", srcLinkTarget)
+
+		MakeDirs(filepath.Dir(dst))
+
+		err = os.Symlink(srcLinkTarget, dst)
+		PrintError("copyLink: Symlink", err)
+
+	}
+	return nil
+}
+
+func isSymblink(src string) bool {
+	linfo, err := os.Lstat(src)
+	if err != nil {
+		PrintError("isSymblink", err)
+		return false
+	}
+	if linfo.Mode()&os.ModeSymlink != 0 {
+		return true
+	}
+	return false
 }
 
 func getThreadNum() int {
@@ -214,6 +283,15 @@ func MakeDirs(dpath string) error {
 
 func Int2Str(n int) string {
 	return strconv.Itoa(n)
+}
+
+func Int64Int(n int64) int {
+	n10, err := strconv.Atoi(strconv.FormatInt(n, 10))
+	if err != nil {
+		PrintError("Int64Int", err)
+		return 0
+	}
+	return n10
 }
 
 func GetNowUnix() int64 {

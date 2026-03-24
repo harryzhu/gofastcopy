@@ -6,17 +6,21 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 )
 
 var (
-	timeGetStart   int64 = GetNowUnix()
-	timeGetStop    int64 = 0
-	timeDuration   int64 = 0
-	totalWriteSize int64 = 0
-	totalSpeed     int64 = 0
+	timeGetStart   int64                  = GetNowUnix()
+	timeGetStop    int64                  = 0
+	timeDuration   int64                  = 0
+	totalWriteSize int64                  = 0
+	totalSpeed     int64                  = 0
+	dirList        map[string]os.FileInfo = make(map[string]os.FileInfo, 4096)
+	memStats       runtime.MemStats
+	memString      string
 )
 
 type CopyElement struct {
@@ -32,6 +36,11 @@ func updateTotalSpeed() {
 	if timeDuration > 0 {
 		totalSpeed = totalWriteSize / timeDuration
 	}
+
+	if IsWithMemStats {
+		runtime.ReadMemStats(&memStats)
+		memString = fmt.Sprintf("MEM: %vMB,%vMB,NumGC: %v", memStats.Alloc/MB, memStats.Sys/MB, memStats.NumGC)
+	}
 }
 
 func sendFileToChanFile(srcPath string, dstPath string, finfo os.FileInfo, copyMode int) (ele CopyElement, err error) {
@@ -44,12 +53,18 @@ func sendFileToChanFile(srcPath string, dstPath string, finfo os.FileInfo, copyM
 }
 
 func getChanFileToDisk(ele CopyElement) error {
+	if ele.Finfo.IsDir() {
+		return nil
+	}
+
 	fsrc := ele.Fsrc
 	fdst := ele.Fdst
+	finfo := ele.Finfo
 
-	DebugInfo("GetChanFileToDisk: fsrc = ", fsrc, ", fdst = ", fdst)
+	DebugInfo("GetChanFileToDisk:", "fsrc = ", fsrc, ", fdst = ", fdst)
 
-	_, err := copyFile(fsrc, fdst)
+	_, err := copyFile(fsrc, fdst, finfo)
+
 	PrintError("GetChanFileToDisk", err)
 	return err
 }
@@ -89,7 +104,7 @@ func fastCopy() error {
 				if IsSerial {
 					fmt.Printf(" %s %10d, %20dMB/s\r", ":::", num, totalSpeed>>20)
 				} else {
-					fmt.Printf(" %s %10d, %10d, %20dMB/s\r", ":::", len(chanFile), num, totalSpeed>>20)
+					fmt.Printf(" %s %10d, %10d, %25dMB/s,  %s\r", ":::", len(chanFile), num, totalSpeed>>20, memString)
 				}
 
 			}
@@ -143,6 +158,8 @@ func fastCopy() error {
 		defer wg.Done()
 
 		fextreg := regexp.MustCompile("(?i)" + FileExt)
+		var targetPath string
+		var fsize int64
 
 		filepath.Walk(SourceDir, func(fpath string, finfo os.FileInfo, err error) error {
 			if err != nil {
@@ -151,6 +168,7 @@ func fastCopy() error {
 			}
 
 			fpath = ToUnixSlash(fpath)
+			targetPath = ToUnixSlash(strings.Replace(fpath, SourceDir, TargetDir, 1))
 
 			if finfo.IsDir() {
 				if IsIgnoreEmptyFolder {
@@ -158,14 +176,19 @@ func fastCopy() error {
 				}
 
 				D2Dir := strings.Replace(fpath, SourceDir, TargetDir, 1)
-				_, err := os.Stat(D2Dir)
-				if err != nil {
+				if _, err := os.Stat(D2Dir); err != nil {
 					MakeDirs(D2Dir)
 				}
+				dirList[targetPath] = finfo
 				return nil
 			}
 
 			num++
+
+			if isSymblink(fpath) {
+				copyLink(fpath, targetPath)
+				return nil
+			}
 
 			if FileExt != "" {
 				if fextreg.MatchString(filepath.Ext(fpath)) == false {
@@ -181,15 +204,17 @@ func fastCopy() error {
 				}
 			}
 
+			fsize = finfo.Size()
+
 			if MinSize != -1 {
-				if finfo.Size() < MinSize {
+				if fsize < MinSize {
 					numSkip["skip_size_min"]++
 					return nil
 				}
 			}
 
 			if MaxSize != -1 {
-				if finfo.Size() > MaxSize {
+				if fsize > MaxSize {
 					numSkip["skip_size_max"]++
 					return nil
 				}
@@ -223,14 +248,6 @@ func fastCopy() error {
 				}
 			}
 
-			targetPath := strings.Replace(fpath, SourceDir, TargetDir, 1)
-			//DebugInfo("FastCopy: targetPath", targetPath)
-
-			_, err = os.Stat(fpath)
-			if err != nil {
-				return nil
-			}
-
 			if IsOverwrite == false {
 				_, err = os.Stat(targetPath)
 				if err == nil {
@@ -239,13 +256,16 @@ func fastCopy() error {
 				}
 			}
 
+			//
+
 			if IsDryRun {
 				fmt.Printf("%s ==> %s\n", fpath, targetPath)
 				return nil
 			}
 
 			if IsSerial {
-				fsize, err := copyFile(fpath, targetPath)
+				_, err = copyFile(fpath, targetPath, finfo)
+
 				if err != nil {
 					PrintError("FastCopy: copyFile", err)
 					return err
@@ -274,7 +294,7 @@ func fastCopy() error {
 		if IsSerial {
 			fmt.Printf(" %s %10d\r", ":::", num)
 		} else {
-			fmt.Printf(" %s %10d, %10d, %20dMB/s\r", ":::", len(chanFile), num, totalSpeed>>20)
+			fmt.Printf(" %s %10d, %10d, %25dMB/s\r", ":::", len(chanFile), num, totalSpeed>>20)
 		}
 
 		//
@@ -332,34 +352,19 @@ func purgeTargetDir() error {
 }
 
 func updateTargetDir() error {
-	var e1, e2 error
-	var srcInfo fs.FileInfo
-	SourceDir = ToUnixSlash(SourceDir)
-	TargetDir = ToUnixSlash(TargetDir)
-	filepath.WalkDir(TargetDir, func(dstPath string, finfo fs.DirEntry, err error) error {
-		if err != nil {
-			PrintError("updateTargetDir: walkdir", err)
-			return err
+	if len(dirList) > 0 {
+		var err error
+		t1 := GetNowUnix()
+		for dstPath, srcInfo := range dirList {
+			err = os.Chtimes(dstPath, srcInfo.ModTime(), srcInfo.ModTime())
+			PrintError("updateTargetDir: os.Chtimes", err)
+
+			err = os.Chmod(dstPath, srcInfo.Mode())
+			PrintError("updateTargetDir: os.Chmod", err)
 		}
+		t2 := GetNowUnix()
 
-		if finfo.IsDir() == false {
-			return nil
-		}
-
-		dstPath = ToUnixSlash(dstPath)
-
-		srcPath := strings.Replace(dstPath, strings.TrimRight(TargetDir, "/"), strings.TrimRight(SourceDir, "/"), 1)
-		srcInfo, e1 = os.Stat(srcPath)
-		if e1 != nil {
-			return e1
-		}
-		e2 = os.Chtimes(dstPath, srcInfo.ModTime(), srcInfo.ModTime())
-		PrintError("updateTargetDir: os.Chtimes", e2)
-
-		e2 = os.Chmod(dstPath, srcInfo.Mode())
-		PrintError("updateTargetDir: os.Chmod", e2)
-
-		return nil
-	})
+		DebugInfo("updateTargetDir", (t2 - t1), " (sec)/", len(dirList))
+	}
 	return nil
 }
