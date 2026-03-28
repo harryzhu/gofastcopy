@@ -10,15 +10,6 @@ import (
 	"time"
 )
 
-const (
-	MB uint64 = 1 << 20
-)
-
-var (
-	bufSize int = 64 << 10
-	bufPool *BufferPool
-)
-
 func flagsValidate() error {
 	if SourceDir == "" || TargetDir == "" || SourceDir == TargetDir {
 		PrintError("gofastcopy", NewError("--source-dir=  --target-dir=  cannot be empty or same"))
@@ -27,7 +18,7 @@ func flagsValidate() error {
 
 	if strings.HasPrefix(TargetDir, strings.TrimRight(SourceDir, "/")+"/") {
 		PrintError("gofastcopy", NewError("--target-dir=  cannot be in --source-dir= "))
-		os.Exit(0)
+		ExitWithNum(0)
 	}
 
 	fmt.Printf("SourceDir: %v\n", SourceDir)
@@ -38,21 +29,23 @@ func flagsValidate() error {
 	finfo, err := os.Stat(SourceDir)
 	if err != nil {
 		PrintError("gofastcopy", err)
-		os.Exit(0)
+		ExitWithNum(0)
 	}
+
 	if !finfo.IsDir() {
 		PrintError("gofastcopy", NewError("--source-dir=", SourceDir, " should be a directory"))
-		os.Exit(0)
+		ExitWithNum(0)
 	}
+
 	//
 	if TargetDir == "/" {
 		PrintError("gofastcopy", NewError("--target-dir= cannot be \"/\" for safty"))
-		os.Exit(0)
+		ExitWithNum(0)
 	}
 
 	if strings.HasPrefix(strings.TrimRight(TargetDir, "/")+"/", strings.TrimRight(SourceDir, "/")+"/") {
 		PrintError("gofastcopy", NewError("--target-dir= cannot be a subfolder in --source-dir= "))
-		os.Exit(0)
+		ExitWithNum(0)
 	}
 
 	//
@@ -60,11 +53,12 @@ func flagsValidate() error {
 	finfo, err = os.Stat(TargetDir)
 	if err != nil {
 		PrintError("gofastcopy", err)
-		os.Exit(0)
+		ExitWithNum(0)
 	}
+
 	if !finfo.IsDir() {
 		PrintError("gofastcopy", NewError("--target-dir=", TargetDir, " should be a directory"))
-		os.Exit(0)
+		ExitWithNum(0)
 	}
 
 	if FileExt != "" {
@@ -86,7 +80,7 @@ func flagsValidate() error {
 
 	if minAge > 0 && maxAge > 0 && minAge > maxAge {
 		PrintError("FlagsValidate", NewError("--min-age= cannot be greater than --max-age= "))
-		os.Exit(0)
+		ExitWithNum(0)
 	}
 
 	if MinSizeMB >= 0 {
@@ -107,13 +101,15 @@ func flagsValidate() error {
 
 	if MinSize > -1 && MaxSize > -1 && MinSize > MaxSize {
 		PrintError("FlagsValidate", NewError("--min-size= cannot be greater than --max-size= "))
-		os.Exit(0)
+		ExitWithNum(0)
 	}
 
 	if MinSize < -1 || MaxSize < -1 {
 		PrintError("FlagsValidate", NewError("--min-size= or --max-size= should be greater than 0 "))
-		os.Exit(0)
+		ExitWithNum(0)
 	}
+
+	qcap = getThreadNum()
 
 	cpuflags := getCPUFlags()
 	if IsSIMD {
@@ -122,12 +118,6 @@ func flagsValidate() error {
 		}
 	}
 
-	if IsSerial || IsWithLimitMemory {
-		bufSize = 32 << 10
-	}
-
-	bufPool = NewBufferPool(bufSize, 4096)
-
 	fmt.Println("ignore dot files: ", IsIgnoreDotFile)
 	fmt.Println("ignore empty folder: ", IsIgnoreEmptyFolder)
 	fmt.Println("overwrite existing files: ", IsOverwrite)
@@ -135,7 +125,7 @@ func flagsValidate() error {
 	fmt.Println("simd: ", IsSIMD)
 	fmt.Println("purge: ", IsPurge)
 	fmt.Println("cpu: ", numCPU, cpuflags)
-	fmt.Println("threads: ", getThreadNum())
+	fmt.Println("threads: ", qcap)
 	fmt.Println("buffer: ", bufSize)
 	fmt.Println("Time: ", time.Now().Format("2006-01-02 15:04:05"))
 
@@ -205,18 +195,18 @@ func regularCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err e
 	return finfo.Size(), nil
 }
 
-func copyLink(src, dst string) error {
+func copyLink(src, dst string) (n int, err error) {
 	src = ToUnixSlash(src)
 	dst = ToUnixSlash(dst)
 
 	if _, err := os.Stat(dst); err == nil {
-		return nil
+		return 0, nil
 	}
 
 	linfo, err := os.Lstat(src)
 	if err != nil {
 		PrintError("copyLink", err)
-		return err
+		return 0, err
 	}
 
 	if linfo.Mode()&os.ModeSymlink != 0 {
@@ -224,7 +214,7 @@ func copyLink(src, dst string) error {
 		srcLinkTarget, err := os.Readlink(src)
 		if err != nil {
 			PrintError("copyLink", err)
-			return err
+			return 0, err
 		}
 		DebugInfo("copyLink", src, " -> ", srcLinkTarget)
 
@@ -234,7 +224,7 @@ func copyLink(src, dst string) error {
 		PrintError("copyLink: Symlink", err)
 
 	}
-	return nil
+	return 1, nil
 }
 
 func isSymblink(src string) bool {
@@ -320,4 +310,8 @@ func TimeStr2Unix(s string) int64 {
 	}
 
 	return parsedTime.Unix()
+}
+
+func ExitWithNum(n int) {
+	os.Exit(n)
 }

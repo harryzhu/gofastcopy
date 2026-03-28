@@ -12,17 +12,6 @@ import (
 	"sync/atomic"
 )
 
-var (
-	timeGetStart   int64                  = GetNowUnix()
-	timeGetStop    int64                  = 0
-	timeDuration   int64                  = 0
-	totalWriteSize int64                  = 0
-	totalSpeed     int64                  = 0
-	dirList        map[string]os.FileInfo = make(map[string]os.FileInfo, 4096)
-	memStats       runtime.MemStats
-	memString      string
-)
-
 type CopyElement struct {
 	Fsrc     string
 	Fdst     string
@@ -43,7 +32,7 @@ func updateTotalSpeed() {
 	}
 }
 
-func sendFileToChanFile(srcPath string, dstPath string, finfo os.FileInfo, copyMode int) (ele CopyElement, err error) {
+func file2CopyElement(srcPath string, dstPath string, finfo os.FileInfo, copyMode int) (ele CopyElement, err error) {
 	ele.Fsrc = ToUnixSlash(srcPath)
 	ele.Fdst = ToUnixSlash(dstPath)
 	ele.Finfo = finfo
@@ -71,31 +60,26 @@ func getChanFileToDisk(ele CopyElement) error {
 
 func fastCopy() error {
 	var num int = 0
-	var numSkip map[string]int = make(map[string]int)
-	numSkip["skip_dot_file"] = 0
-	numSkip["skip_file_ext"] = 0
-	numSkip["skip_size_min"] = 0
-	numSkip["skip_size_max"] = 0
-	numSkip["skip_age_min"] = 0
-	numSkip["skip_age_max"] = 0
-	numSkip["skip_exclude_dir"] = 0
-	numSkip["skip_exists"] = 0
-
-	qcap := getThreadNum()
-
-	var chanFile chan CopyElement = make(chan CopyElement, qcap)
+	var numStatistics map[string]int = make(map[string]int)
+	numStatistics["skip_dot_file"] = 0
+	numStatistics["skip_file_ext"] = 0
+	numStatistics["skip_size_min"] = 0
+	numStatistics["skip_size_max"] = 0
+	numStatistics["skip_age_min"] = 0
+	numStatistics["skip_age_max"] = 0
+	numStatistics["skip_exclude_dir"] = 0
+	numStatistics["skip_exists"] = 0
 	//
-	var IsAllRWDone bool
-	//
+	numStatistics["symbol_link"] = 0
+
 	wg := sync.WaitGroup{}
 
 	wg.Add(3)
 
 	go func() error {
 		defer wg.Done()
-
 		for {
-			if IsAllRWDone == true {
+			if isChanFileRWDone == true {
 				break
 			}
 
@@ -115,41 +99,7 @@ func fastCopy() error {
 	//chanFile
 	go func() error {
 		defer wg.Done()
-
-		wgGetChanFile := sync.WaitGroup{}
-		numGet := int32(0)
-		qcapInt32 := int32(qcap)
-
-		for {
-			cf := <-chanFile
-			if cf.CopyMode == -1 {
-				IsAllRWDone = true
-				DebugInfo("_COPYSTATUS:", "DONE")
-				break
-			}
-
-			totalWriteSize += cf.Finfo.Size()
-
-			atomic.AddInt32(&numGet, 1)
-			wgGetChanFile.Add(1)
-
-			go func(cf CopyElement) {
-				defer func() {
-					atomic.AddInt32(&numGet, -1)
-					wgGetChanFile.Done()
-				}()
-				getChanFileToDisk(cf)
-			}(cf)
-
-			curNumGet := atomic.LoadInt32(&numGet)
-
-			if curNumGet > qcapInt32 && curNumGet%qcapInt32 == 0 {
-				wgGetChanFile.Wait()
-			}
-
-		}
-		wgGetChanFile.Wait()
-
+		taskChanFile()
 		updateTotalSpeed()
 		return nil
 	}()
@@ -160,6 +110,7 @@ func fastCopy() error {
 		fextreg := regexp.MustCompile("(?i)" + FileExt)
 		var targetPath string
 		var fsize int64
+		var ftime int64
 
 		filepath.Walk(SourceDir, func(fpath string, finfo os.FileInfo, err error) error {
 			if err != nil {
@@ -176,9 +127,8 @@ func fastCopy() error {
 				}
 
 				D2Dir := strings.Replace(fpath, SourceDir, TargetDir, 1)
-				if _, err := os.Stat(D2Dir); err != nil {
-					MakeDirs(D2Dir)
-				}
+				MakeDirs(D2Dir)
+
 				dirList[targetPath] = finfo
 				return nil
 			}
@@ -186,53 +136,65 @@ func fastCopy() error {
 			num++
 
 			if isSymblink(fpath) {
-				copyLink(fpath, targetPath)
+
+				nl, err := copyLink(fpath, targetPath)
+				if err == nil {
+					if nl == 0 {
+						numStatistics["skip_exists"]++
+					} else {
+						numStatistics["symbol_link"] += 1
+					}
+				}
 				return nil
 			}
 
 			if FileExt != "" {
 				if fextreg.MatchString(filepath.Ext(fpath)) == false {
-					numSkip["skip_file_ext"]++
+					numStatistics["skip_file_ext"]++
 					return nil
 				}
 			}
 
 			if IsIgnoreDotFile == true {
 				if strings.HasPrefix(filepath.Base(fpath), ".") {
-					numSkip["skip_dot_file"]++
+					numStatistics["skip_dot_file"]++
 					return nil
 				}
 			}
 
-			fsize = finfo.Size()
+			if MinSize != -1 || MaxSize != -1 {
+				fsize = finfo.Size()
+				if MinSize != -1 {
+					if fsize < MinSize {
+						numStatistics["skip_size_min"]++
+						return nil
+					}
+				}
 
-			if MinSize != -1 {
-				if fsize < MinSize {
-					numSkip["skip_size_min"]++
-					return nil
+				if MaxSize != -1 {
+					if fsize > MaxSize {
+						numStatistics["skip_size_max"]++
+						return nil
+					}
 				}
 			}
 
-			if MaxSize != -1 {
-				if fsize > MaxSize {
-					numSkip["skip_size_max"]++
-					return nil
+			if MinAge != "" || MaxAge != "" {
+				ftime = finfo.ModTime().Unix()
+				if MinAge != "" {
+					minAge := TimeStr2Unix(MinAge)
+					if ftime < minAge {
+						numStatistics["skip_age_min"]++
+						return nil
+					}
 				}
-			}
 
-			if MinAge != "" {
-				minAge := TimeStr2Unix(MinAge)
-				if finfo.ModTime().Unix() < minAge {
-					numSkip["skip_age_min"]++
-					return nil
-				}
-			}
-
-			if MaxAge != "" {
-				maxAge := TimeStr2Unix(MaxAge)
-				if finfo.ModTime().Unix() > maxAge {
-					numSkip["skip_age_max"]++
-					return nil
+				if MaxAge != "" {
+					maxAge := TimeStr2Unix(MaxAge)
+					if ftime > maxAge {
+						numStatistics["skip_age_max"]++
+						return nil
+					}
 				}
 			}
 
@@ -242,7 +204,7 @@ func fastCopy() error {
 
 				_, err = os.Stat(excludePath)
 				if err == nil {
-					numSkip["skip_exclude_dir"]++
+					numStatistics["skip_exclude_dir"]++
 					DebugInfo("FastCopy: SKIP", excludePath)
 					return nil
 				}
@@ -251,27 +213,20 @@ func fastCopy() error {
 			if IsOverwrite == false {
 				_, err = os.Stat(targetPath)
 				if err == nil {
-					numSkip["skip_exists"]++
+					numStatistics["skip_exists"]++
 					return nil
 				}
 			}
 
 			//
-
-			if IsDryRun {
-				fmt.Printf("%s ==> %s\n", fpath, targetPath)
-				return nil
-			}
-
 			if IsSerial {
 				_, err = copyFile(fpath, targetPath, finfo)
-
 				if err != nil {
 					PrintError("FastCopy: copyFile", err)
 					return err
 				}
 
-				totalWriteSize += fsize
+				atomic.AddInt64(&totalWriteSize, finfo.Size())
 				return nil
 			}
 
@@ -280,9 +235,9 @@ func fastCopy() error {
 			// 1: cache file data in memory
 			// -1: _COPYSTATUS = Done
 
-			ele, err := sendFileToChanFile(fpath, targetPath, finfo, 0)
+			ele, err := file2CopyElement(fpath, targetPath, finfo, 0)
 			if err != nil {
-				PrintError("FastCopy: sendFileToChanFile", err)
+				PrintError("FastCopy: file2CopyElement", err)
 				return err
 			}
 
@@ -315,9 +270,19 @@ func fastCopy() error {
 
 	fmt.Println("------------------------------------------------------------")
 	var allIgnoredFiles int
-	for k, v := range numSkip {
-		fmt.Printf("\n** Ignored: %20s: %10v", k, v)
-		allIgnoredFiles += v
+	for k, v := range numStatistics {
+		if strings.HasPrefix(k, "skip_") {
+			fmt.Printf("\n** Ignored: %20s: %10v", k, v)
+			allIgnoredFiles += v
+		}
+	}
+
+	fmt.Println("")
+
+	for k, v := range numStatistics {
+		if strings.HasPrefix(k, "skip_") == false {
+			fmt.Printf("\n** Copied: %20s: %10v", k, v)
+		}
 	}
 
 	if IsSerial {
@@ -366,5 +331,43 @@ func updateTargetDir() error {
 
 		DebugInfo("updateTargetDir", (t2 - t1), " (sec)/", len(dirList))
 	}
+	return nil
+}
+
+func taskChanFile() error {
+	wgGetChanFile := sync.WaitGroup{}
+	numWait := int32(qcap)
+	curNumGet := int32(0)
+
+	for {
+		cf := <-chanFile
+		if cf.CopyMode == -1 {
+			isChanFileRWDone = true
+			DebugInfo("_COPYSTATUS:chanFile:", "DONE")
+			break
+		}
+
+		atomic.AddInt64(&totalWriteSize, cf.Finfo.Size())
+
+		atomic.AddInt32(&taskNumGet, 1)
+		wgGetChanFile.Add(1)
+
+		go func(cf CopyElement) {
+			defer func() {
+				atomic.AddInt32(&taskNumGet, -1)
+				wgGetChanFile.Done()
+			}()
+			getChanFileToDisk(cf)
+		}(cf)
+
+		curNumGet = atomic.LoadInt32(&taskNumGet)
+
+		if curNumGet%numWait == 0 {
+			wgGetChanFile.Wait()
+		}
+
+	}
+	wgGetChanFile.Wait()
+
 	return nil
 }

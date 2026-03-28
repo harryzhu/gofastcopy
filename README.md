@@ -78,7 +78,7 @@ gofastcopy  --serial 需要 251 秒，比 rsync 快了 26 秒
 # SSD天然更适合并行读取，而机械硬盘只有一个机械臂，物理摆动机械臂效率更低。
 # 串行读取文件，机械臂摆动到位置，读完才走，
 # 并行读取几十个小文件，机械臂读一点，又要摆动到其他位置读取别的文件，
-# 然后又回来读取了一点点又再次离开，再回来再读再离开，无用功线形增加。
+# 然后又回来读取了一点点又再次离开，再回来再读再离开，无用功线性增加。
 # 文件越多、越大，这种无用功增加的绝对时间越长（摆臂次数），
 # 依照机械硬盘的特点，使用串行读取，即可避免无用功。
 #
@@ -102,7 +102,6 @@ gofastcopy  --serial 需要 251 秒，比 rsync 快了 26 秒
 ./gofastcopy --source-dir="/path/to/source" --target-dir="/path/to/target"
 
 # --debug 默认 false ： 是否显示各种调试信息
-# --dry-run 默认 false ： 设置为 true 时，仅在控制台窗口显示将会复制的文件，不会实际写入文件
 #
 # --source-dir 默认为 空 ： 源文件夹
 # --target-dir 默认为 空 ： 复制到的目标文件夹
@@ -120,8 +119,8 @@ gofastcopy  --serial 需要 251 秒，比 rsync 快了 26 秒
 # --min-age 默认为 空 ： 文件最后修改时间【早于】该值的文件将被忽略
 # --max-age 默认为 空 ：文件最后修改时间【晚于】该值的文件将被忽略
 #
-# --ignore-dot-file 默认为 true ： 是否忽略点（.）开头的文件
-# --ignore-empty-folder 默认为 true ：是否忽略空文件夹
+# --ignore-dot-file 默认为 false ： 是否忽略点（.）开头的文件
+# --ignore-empty-folder 默认为 false ：是否忽略空文件夹
 # --overwrite 默认为 false ： 是否允许覆盖已经存在的文件
 # --purge 默认为 false ： 是否删除目标文件夹中存在但源文件夹中不存在的文件，即是否清理目标文件夹中多余的文件
 #

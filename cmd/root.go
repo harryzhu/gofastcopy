@@ -15,7 +15,6 @@ var (
 	IsIgnoreEmptyFolder bool
 	IsOverwrite         bool
 	IsPurge             bool
-	IsDryRun            bool
 	MaxSize             int64
 	MinSize             int64
 	MaxSizeMB           int64
@@ -76,7 +75,6 @@ var rootCmd = &cobra.Command{
 		if timeStart > 0 && timeStop > 0 {
 			fmt.Printf("\n***** Elapse: %v (sec) *****\n", (timeStop - timeStart))
 		}
-
 	},
 }
 
@@ -91,7 +89,6 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&IsDebug, "debug", false, "if print debug info")
-	rootCmd.PersistentFlags().BoolVar(&IsDryRun, "dry-run", false, "if true, will not copy the file, just print the file on console")
 	//
 	rootCmd.PersistentFlags().BoolVar(&IsWithLimitMemory, "with-mem-limit", false, "run with low momery, task will be forced to 4 threads")
 	rootCmd.PersistentFlags().BoolVar(&IsWithTimeUTC, "with-time-utc", false, "use UTC timezone with parameter --min-age / --max-age")
@@ -120,5 +117,4 @@ func init() {
 	//
 	rootCmd.Flags().IntVar(&ThreadNum, "threads", 0, "force the concurrent tasks, more threads, more memory required")
 	//
-
 }

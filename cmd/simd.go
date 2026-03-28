@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"syscall"
+	"unsafe"
 
 	"golang.org/x/sys/cpu"
 )
@@ -22,8 +23,9 @@ func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 	}
 	defer syscall.Close(dstFd)
 
-	//alignedBuf := make([]byte, bufSize)
-	alignedBuf := bufPool.Get()
+	buf := make([]byte, bufSize)
+	alignedBuf := alignBuffer(buf)
+
 	for {
 		n, err := syscall.Read(srcFd, alignedBuf)
 		if n == 0 || err != nil {
@@ -38,8 +40,6 @@ func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 		}
 	}
 
-	bufPool.Put(alignedBuf)
-
 	err = os.Chmod(dst, finfo.Mode())
 	PrintError("copyFileSIMD: Chmod", err)
 
@@ -49,35 +49,55 @@ func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 	return finfo.Size(), nil
 }
 
+func alignBuffer(buf []byte) []byte {
+	offset := (uintptrAlign - (uintptr(unsafe.Pointer(&buf[0])) % uintptrAlign)) % uintptrAlign
+	return buf[offset : offset+uintptrBufSize]
+}
+
 func simdCopy(data []byte) {
 	switch {
-	case cpu.X86.HasAVX2:
-		avx2Copy(data)
-	case cpu.X86.HasSSE3:
-		sseCopy(data)
-	case cpu.ARM64.HasASIMD:
+	case isASIMD:
 		neonCopy(data)
+	case isAVX512:
+		avx512Copy(data)
+	case isAVX2:
+		avx2Copy(data)
+	case isSSE3:
+		sseCopy(data)
 	}
+}
+
+func avx512Copy(data []byte) {
 }
 
 func avx2Copy(data []byte) {
 }
+
 func sseCopy(data []byte) {
 }
+
 func neonCopy(data []byte) {
 }
 
 func getCPUFlags() string {
 	cfs := []string{}
+	if cpu.X86.HasAVX512 {
+		isAVX512 = true
+		cfs = append(cfs, "avx512")
+	}
+
 	if cpu.X86.HasAVX2 {
+		isAVX2 = true
 		cfs = append(cfs, "avx2")
 	}
 
 	if cpu.X86.HasSSE3 {
+		isSSE3 = true
 		cfs = append(cfs, "sse3")
 	}
 
 	if cpu.ARM64.HasASIMD {
+		isASIMD = true
 		cfs = append(cfs, "asimd")
 	}
 
