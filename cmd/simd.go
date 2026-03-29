@@ -9,6 +9,36 @@ import (
 	"golang.org/x/sys/cpu"
 )
 
+var (
+	isAVX512       bool
+	isAVX2         bool
+	isSSE3         bool
+	isASIMD        bool
+	uintptrAlign   uintptr
+	uintptrBufSize uintptr
+)
+
+func init() {
+	if cpu.X86.HasAVX512 {
+		isAVX512 = true
+	}
+
+	if cpu.X86.HasAVX2 {
+		isAVX2 = true
+	}
+
+	if cpu.X86.HasSSE3 {
+		isSSE3 = true
+	}
+
+	if cpu.ARM64.HasASIMD {
+		isASIMD = true
+	}
+
+	uintptrAlign = uintptr(64)
+	uintptrBufSize = uintptr(64 << 10)
+}
+
 func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
 	srcFd, err := syscall.Open(src, syscall.O_RDONLY, 0)
 	if err != nil {
@@ -82,22 +112,18 @@ func neonCopy(data []byte) {
 func getCPUFlags() string {
 	cfs := []string{}
 	if cpu.X86.HasAVX512 {
-		isAVX512 = true
 		cfs = append(cfs, "avx512")
 	}
 
 	if cpu.X86.HasAVX2 {
-		isAVX2 = true
 		cfs = append(cfs, "avx2")
 	}
 
 	if cpu.X86.HasSSE3 {
-		isSSE3 = true
 		cfs = append(cfs, "sse3")
 	}
 
 	if cpu.ARM64.HasASIMD {
-		isASIMD = true
 		cfs = append(cfs, "asimd")
 	}
 

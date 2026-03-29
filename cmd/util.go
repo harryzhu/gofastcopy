@@ -137,7 +137,10 @@ func copyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
 		writeSize, err = simdCopyFile(src, dst, finfo)
 		if err == nil {
 			return writeSize, err
+		} else {
+			PrintError("simdCopyFile", err)
 		}
+
 	}
 
 	writeSize, err = regularCopyFile(src, dst, finfo)

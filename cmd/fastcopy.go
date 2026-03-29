@@ -28,7 +28,7 @@ func updateTotalSpeed() {
 
 	if IsWithMemStats {
 		runtime.ReadMemStats(&memStats)
-		memString = fmt.Sprintf("MEM: %vMB,%vMB,NumGC: %v", memStats.Alloc/MB, memStats.Sys/MB, memStats.NumGC)
+		memString = fmt.Sprintf("MEM: %vMB,%vMB,NumGC: %v", memStats.Alloc/uMB, memStats.Sys/uMB, memStats.NumGC)
 	}
 }
 
@@ -83,7 +83,7 @@ func fastCopy() error {
 				break
 			}
 
-			if num > 99 && num%100 == 0 {
+			if num < 99 || num%100 == 0 {
 				updateTotalSpeed()
 				if IsSerial {
 					fmt.Printf(" %s %10d, %20dMB/s\r", ":::", num, totalSpeed>>20)
@@ -335,6 +335,8 @@ func updateTargetDir() error {
 }
 
 func taskChanFile() error {
+	runtime.GOMAXPROCS(qcap + 8)
+
 	wgGetChanFile := sync.WaitGroup{}
 	numWait := int32(qcap)
 	curNumGet := int32(0)

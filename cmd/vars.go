@@ -6,21 +6,13 @@ import (
 )
 
 const (
-	MB uint64 = 1 << 20
+	MB int64 = 1 << 20
+	//
+	uMB uint64 = 1 << 20
 )
 
 var (
-	// if change bufSize, then [uintptrAlign] has to be changed as well
 	bufSize int = 64 << 10
-)
-
-var (
-	isAVX512       bool
-	isAVX2         bool
-	isSSE3         bool
-	isASIMD        bool
-	uintptrAlign   uintptr = uintptr(64)
-	uintptrBufSize uintptr = uintptr(bufSize)
 )
 
 var (
@@ -29,7 +21,7 @@ var (
 	timeDuration   int64                  = 0
 	totalWriteSize int64                  = 0
 	totalSpeed     int64                  = 0
-	dirList        map[string]os.FileInfo = make(map[string]os.FileInfo, 1024)
+	dirList        map[string]os.FileInfo = make(map[string]os.FileInfo, 2048)
 )
 
 var (
