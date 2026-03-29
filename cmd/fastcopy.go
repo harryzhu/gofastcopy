@@ -128,7 +128,6 @@ func fastCopy() error {
 
 				D2Dir := strings.Replace(fpath, SourceDir, TargetDir, 1)
 				MakeDirs(D2Dir)
-
 				dirList[targetPath] = finfo
 				return nil
 			}
@@ -335,7 +334,6 @@ func updateTargetDir() error {
 }
 
 func taskChanFile() error {
-	runtime.GOMAXPROCS(qcap + 8)
 
 	wgGetChanFile := sync.WaitGroup{}
 	numWait := int32(qcap)

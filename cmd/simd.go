@@ -36,7 +36,7 @@ func init() {
 	}
 
 	uintptrAlign = uintptr(64)
-	uintptrBufSize = uintptr(64 << 10)
+	uintptrBufSize = uintptr(bufSize)
 }
 
 func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {

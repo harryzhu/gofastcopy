@@ -10,6 +10,19 @@ import (
 	"time"
 )
 
+func bootstrap() error {
+	qcap = getThreadNum()
+
+	cpuFlags = getCPUFlags()
+	if IsSIMD {
+		if cpuFlags == "" {
+			IsSIMD = false
+		}
+	}
+
+	return nil
+}
+
 func flagsValidate() error {
 	if SourceDir == "" || TargetDir == "" || SourceDir == TargetDir {
 		PrintError("gofastcopy", NewError("--source-dir=  --target-dir=  cannot be empty or same"))
@@ -109,14 +122,7 @@ func flagsValidate() error {
 		ExitWithNum(0)
 	}
 
-	qcap = getThreadNum()
-
-	cpuflags := getCPUFlags()
-	if IsSIMD {
-		if cpuflags == "" {
-			IsSIMD = false
-		}
-	}
+	bootstrap()
 
 	fmt.Println("ignore dot files: ", IsIgnoreDotFile)
 	fmt.Println("ignore empty folder: ", IsIgnoreEmptyFolder)
@@ -124,11 +130,10 @@ func flagsValidate() error {
 	fmt.Println("serial: ", IsSerial)
 	fmt.Println("simd: ", IsSIMD)
 	fmt.Println("purge: ", IsPurge)
-	fmt.Println("cpu: ", numCPU, cpuflags)
+	fmt.Println("cpu: ", numCPU, cpuFlags)
 	fmt.Println("threads: ", qcap)
 	fmt.Println("buffer: ", bufSize)
 	fmt.Println("Time: ", time.Now().Format("2006-01-02 15:04:05"))
-
 	return nil
 }
 
@@ -246,9 +251,9 @@ func getThreadNum() int {
 	if ThreadNum > 0 {
 		return ThreadNum
 	}
-	qcap := numCPU * 5
-	if qcap < 32 {
-		qcap = 32
+	qcap := numCPU * 2
+	if qcap < 16 {
+		qcap = 16
 	}
 
 	if qcap > 128 {

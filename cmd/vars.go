@@ -12,6 +12,7 @@ const (
 )
 
 var (
+	// must be in multiples of 64
 	bufSize int = 64 << 10
 )
 
@@ -34,4 +35,5 @@ var (
 var (
 	memStats  runtime.MemStats
 	memString string
+	cpuFlags  string
 )

@@ -56,6 +56,7 @@ var rootCmd = &cobra.Command{
 
 		fmt.Println("-----")
 		flagsValidate()
+
 		fmt.Println("-----")
 
 	},
