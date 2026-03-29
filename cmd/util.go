@@ -188,15 +188,7 @@ func regularCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err e
 		return 0, err
 	}
 
-	err = os.Chmod(dst, finfo.Mode())
-	if err != nil {
-		PrintError("CopyFile: os.Chmod", err)
-		return 0, err
-	}
-
-	err = os.Chtimes(dst, finfo.ModTime(), finfo.ModTime())
-	if err != nil {
-		PrintError("CopyFile: os.Chtimes", err)
+	if err := chmodFile(dst, finfo); err != nil {
 		return 0, err
 	}
 

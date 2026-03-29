@@ -36,7 +36,7 @@ func init() {
 	}
 
 	uintptrAlign = uintptr(64)
-	uintptrBufSize = uintptr(bufSize)
+	uintptrBufSize = uintptr(64 << 10)
 }
 
 func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
@@ -53,7 +53,7 @@ func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 	}
 	defer syscall.Close(dstFd)
 
-	buf := make([]byte, bufSize)
+	buf := make([]byte, 65536)
 	alignedBuf := alignBuffer(buf)
 
 	for {
@@ -70,11 +70,9 @@ func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 		}
 	}
 
-	err = os.Chmod(dst, finfo.Mode())
-	PrintError("copyFileSIMD: Chmod", err)
-
-	err = os.Chtimes(dst, finfo.ModTime(), finfo.ModTime())
-	PrintError("copyFileSIMD: Chtimes", err)
+	if err := chmodFile(dst, finfo); err != nil {
+		return 0, err
+	}
 
 	return finfo.Size(), nil
 }
@@ -132,4 +130,20 @@ func getCPUFlags() string {
 	}
 
 	return strings.Join(cfs, " ")
+}
+
+func chmodFile(dst string, finfo os.FileInfo) (err error) {
+	err = os.Chmod(dst, finfo.Mode())
+	if err != nil {
+		PrintError("chmodFile: os.Chmod", err)
+		return err
+	}
+
+	err = os.Chtimes(dst, finfo.ModTime(), finfo.ModTime())
+	if err != nil {
+		PrintError("chmodFile: os.Chtimes", err)
+		return err
+	}
+
+	return nil
 }
