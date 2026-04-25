@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 )
 
 func bootstrap() error {
@@ -19,6 +19,22 @@ func bootstrap() error {
 			IsSIMD = false
 		}
 	}
+	fmt.Println("CopyElementWidth:", unsafe.Sizeof(CopyElement{}))
+
+	numStatistics = make(map[string]int)
+	numStatistics["skip_dot_file"] = 0
+	numStatistics["skip_file_ext"] = 0
+	numStatistics["skip_size_min"] = 0
+	numStatistics["skip_size_max"] = 0
+	numStatistics["skip_age_min"] = 0
+	numStatistics["skip_age_max"] = 0
+	numStatistics["skip_exclude_dir"] = 0
+	numStatistics["skip_exists"] = 0
+	//
+	numStatistics["symbol_link"] = 0
+	//
+
+	fextMatch = regexp.MustCompile("(?i)" + FileExt)
 
 	return nil
 }
@@ -83,12 +99,12 @@ func flagsValidate() error {
 	var minAge, maxAge int64
 	if MinAge != "" {
 		minAge = TimeStr2Unix(MinAge)
-		fmt.Println("latest update time: min: ", minAge)
+		fmt.Println("latest-update-time: min: ", minAge)
 	}
 
 	if MaxAge != "" {
 		maxAge = TimeStr2Unix(MaxAge)
-		fmt.Println("latest update time: max: ", maxAge)
+		fmt.Println("latest-update-time: max: ", maxAge)
 	}
 
 	if minAge > 0 && maxAge > 0 && minAge > maxAge {
@@ -105,11 +121,11 @@ func flagsValidate() error {
 	}
 
 	if MinSize != -1 {
-		fmt.Println("file size: min: ", MinSize)
+		fmt.Println("file-size: min: ", MinSize)
 	}
 
 	if MaxSize != -1 {
-		fmt.Println("file size: max: ", MaxSize)
+		fmt.Println("file-size: max: ", MaxSize)
 	}
 
 	if MinSize > -1 && MaxSize > -1 && MinSize > MaxSize {
@@ -124,9 +140,9 @@ func flagsValidate() error {
 
 	bootstrap()
 
-	fmt.Println("ignore dot files: ", IsIgnoreDotFile)
-	fmt.Println("ignore empty folder: ", IsIgnoreEmptyFolder)
-	fmt.Println("overwrite existing files: ", IsOverwrite)
+	fmt.Println("ignore-dot-files: ", IsIgnoreDotFile)
+	fmt.Println("ignore-empty-folder: ", IsIgnoreEmptyFolder)
+	fmt.Println("overwrite-existing-files: ", IsOverwrite)
 	fmt.Println("serial: ", IsSerial)
 	fmt.Println("simd: ", IsSIMD)
 	fmt.Println("purge: ", IsPurge)
@@ -135,96 +151,6 @@ func flagsValidate() error {
 	fmt.Println("buffer: ", bufSize)
 	fmt.Println("Time: ", time.Now().Format("2006-01-02 15:04:05"))
 	return nil
-}
-
-func copyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
-	if IsSIMD {
-		writeSize, err = simdCopyFile(src, dst, finfo)
-		if err == nil {
-			return writeSize, err
-		} else {
-			PrintError("simdCopyFile", err)
-		}
-
-	}
-
-	writeSize, err = regularCopyFile(src, dst, finfo)
-
-	return writeSize, err
-}
-
-func regularCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
-	srcFileHandler, err := os.Open(src)
-	if err != nil {
-		PrintError("CopyFile: os.Open", err)
-		return 0, err
-	}
-	defer srcFileHandler.Close()
-
-	dstTemp := strings.Join([]string{dst, "ing"}, ".")
-
-	MakeDirs(filepath.Dir(dstTemp))
-
-	dstFileHandler, err := os.Create(dstTemp)
-	if err != nil {
-		PrintError("CopyFile: os.Create", err)
-		return 0, err
-	}
-	defer dstFileHandler.Close()
-
-	buf := make([]byte, bufSize)
-	_, err = io.CopyBuffer(dstFileHandler, srcFileHandler, buf)
-	if err != nil {
-		PrintError("CopyFile: io.CopyBuffer", err)
-		return 0, err
-	}
-
-	srcFileHandler.Close()
-	dstFileHandler.Close()
-
-	err = os.Rename(dstTemp, dst)
-	if err != nil {
-		PrintError("CopyFile: os.Rename", err)
-		return 0, err
-	}
-
-	if err := chmodFile(dst, finfo); err != nil {
-		return 0, err
-	}
-
-	return finfo.Size(), nil
-}
-
-func copyLink(src, dst string) (n int, err error) {
-	src = ToUnixSlash(src)
-	dst = ToUnixSlash(dst)
-
-	if _, err := os.Stat(dst); err == nil {
-		return 0, nil
-	}
-
-	linfo, err := os.Lstat(src)
-	if err != nil {
-		PrintError("copyLink", err)
-		return 0, err
-	}
-
-	if linfo.Mode()&os.ModeSymlink != 0 {
-		DebugInfo("copyLink", strings.TrimLeft(src, SourceDir), ": is a symblink")
-		srcLinkTarget, err := os.Readlink(src)
-		if err != nil {
-			PrintError("copyLink", err)
-			return 0, err
-		}
-		DebugInfo("copyLink", src, " -> ", srcLinkTarget)
-
-		MakeDirs(filepath.Dir(dst))
-
-		err = os.Symlink(srcLinkTarget, dst)
-		PrintError("copyLink: Symlink", err)
-
-	}
-	return 1, nil
 }
 
 func isSymblink(src string) bool {
@@ -263,7 +189,7 @@ func MakeDirs(dpath string) error {
 	dpath = ToUnixSlash(dpath)
 	_, err := os.Stat(dpath)
 	if err != nil {
-		DebugInfo("MakeDirs", dpath)
+		//DebugInfo("MakeDirs", dpath)
 		err = os.MkdirAll(dpath, os.ModePerm)
 		PrintError("MakeDirs:MkdirAll", err)
 		return err
@@ -314,4 +240,12 @@ func TimeStr2Unix(s string) int64 {
 
 func ExitWithNum(n int) {
 	os.Exit(n)
+}
+
+func FileExists(fpath string) bool {
+	_, err := os.Stat(fpath)
+	if err != nil {
+		return false
+	}
+	return true
 }

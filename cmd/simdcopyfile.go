@@ -36,7 +36,7 @@ func init() {
 	}
 
 	uintptrAlign = uintptr(64)
-	uintptrBufSize = uintptr(64 << 10)
+	uintptrBufSize = uintptr(bufSize)
 }
 
 func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
@@ -47,13 +47,14 @@ func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 
 	defer syscall.Close(srcFd)
 
-	dstFd, err := syscall.Open(dst, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, 0644)
+	dstTemp := strings.Join([]string{dst, "ing"}, ".")
+	dstFd, err := syscall.Open(dstTemp, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, 0644)
 	if err != nil {
 		return 0, err
 	}
 	defer syscall.Close(dstFd)
 
-	buf := make([]byte, 65536)
+	buf := make([]byte, bufSize)
 	alignedBuf := alignBuffer(buf)
 
 	for {
@@ -68,6 +69,10 @@ func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 		if err != nil {
 			return 0, err
 		}
+	}
+
+	if err := os.Rename(dstTemp, dst); err != nil {
+		return 0, err
 	}
 
 	if err := chmodFile(dst, finfo); err != nil {

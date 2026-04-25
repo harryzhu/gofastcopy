@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"regexp"
 	"runtime"
 )
 
@@ -22,6 +23,7 @@ var (
 	timeDuration   int64                  = 0
 	totalWriteSize int64                  = 0
 	totalSpeed     int64                  = 0
+	totalNum       int                    = 0
 	dirList        map[string]os.FileInfo = make(map[string]os.FileInfo, 2048)
 )
 
@@ -37,3 +39,7 @@ var (
 	memString string
 	cpuFlags  string
 )
+
+var numStatistics map[string]int
+
+var fextMatch *regexp.Regexp

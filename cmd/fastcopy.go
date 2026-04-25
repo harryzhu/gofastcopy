@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -17,6 +16,8 @@ type CopyElement struct {
 	Fdst     string
 	Finfo    os.FileInfo
 	CopyMode int
+	// 4k align
+	z struct{}
 }
 
 func updateTotalSpeed() {
@@ -59,18 +60,6 @@ func getChanFileToDisk(ele CopyElement) error {
 }
 
 func fastCopy() error {
-	var num int = 0
-	var numStatistics map[string]int = make(map[string]int)
-	numStatistics["skip_dot_file"] = 0
-	numStatistics["skip_file_ext"] = 0
-	numStatistics["skip_size_min"] = 0
-	numStatistics["skip_size_max"] = 0
-	numStatistics["skip_age_min"] = 0
-	numStatistics["skip_age_max"] = 0
-	numStatistics["skip_exclude_dir"] = 0
-	numStatistics["skip_exists"] = 0
-	//
-	numStatistics["symbol_link"] = 0
 
 	wg := sync.WaitGroup{}
 
@@ -83,12 +72,12 @@ func fastCopy() error {
 				break
 			}
 
-			if num < 99 || num%100 == 0 {
+			if totalNum < 99 || totalNum%100 == 0 {
 				updateTotalSpeed()
 				if IsSerial {
-					fmt.Printf(" %s %10d, %20dMB/s\r", ":::", num, totalSpeed>>20)
+					fmt.Printf(" %s %10d, %20dMB/s\r", ":::", totalNum, totalSpeed>>20)
 				} else {
-					fmt.Printf(" %s %10d, %10d, %25dMB/s,  %s\r", ":::", len(chanFile), num, totalSpeed>>20, memString)
+					fmt.Printf(" %s %10d, %10d, %25dMB/s,  %s\r", ":::", len(chanFile), totalNum, totalSpeed>>20, memString)
 				}
 
 			}
@@ -107,10 +96,7 @@ func fastCopy() error {
 	go func() error {
 		defer wg.Done()
 
-		fextreg := regexp.MustCompile("(?i)" + FileExt)
 		var targetPath string
-		var fsize int64
-		var ftime int64
 
 		filepath.Walk(SourceDir, func(fpath string, finfo os.FileInfo, err error) error {
 			if err != nil {
@@ -132,10 +118,9 @@ func fastCopy() error {
 				return nil
 			}
 
-			num++
+			totalNum++
 
 			if isSymblink(fpath) {
-
 				nl, err := copyLink(fpath, targetPath)
 				if err == nil {
 					if nl == 0 {
@@ -147,74 +132,8 @@ func fastCopy() error {
 				return nil
 			}
 
-			if FileExt != "" {
-				if fextreg.MatchString(filepath.Ext(fpath)) == false {
-					numStatistics["skip_file_ext"]++
-					return nil
-				}
-			}
-
-			if IsIgnoreDotFile == true {
-				if strings.HasPrefix(filepath.Base(fpath), ".") {
-					numStatistics["skip_dot_file"]++
-					return nil
-				}
-			}
-
-			if MinSize != -1 || MaxSize != -1 {
-				fsize = finfo.Size()
-				if MinSize != -1 {
-					if fsize < MinSize {
-						numStatistics["skip_size_min"]++
-						return nil
-					}
-				}
-
-				if MaxSize != -1 {
-					if fsize > MaxSize {
-						numStatistics["skip_size_max"]++
-						return nil
-					}
-				}
-			}
-
-			if MinAge != "" || MaxAge != "" {
-				ftime = finfo.ModTime().Unix()
-				if MinAge != "" {
-					minAge := TimeStr2Unix(MinAge)
-					if ftime < minAge {
-						numStatistics["skip_age_min"]++
-						return nil
-					}
-				}
-
-				if MaxAge != "" {
-					maxAge := TimeStr2Unix(MaxAge)
-					if ftime > maxAge {
-						numStatistics["skip_age_max"]++
-						return nil
-					}
-				}
-			}
-
-			if ExcludeDir != "" {
-				excludePath := strings.Replace(fpath, SourceDir, ExcludeDir, 1)
-				//DebugInfo("FastCopy: excludePath", excludePath)
-
-				_, err = os.Stat(excludePath)
-				if err == nil {
-					numStatistics["skip_exclude_dir"]++
-					DebugInfo("FastCopy: SKIP", excludePath)
-					return nil
-				}
-			}
-
-			if IsOverwrite == false {
-				_, err = os.Stat(targetPath)
-				if err == nil {
-					numStatistics["skip_exists"]++
-					return nil
-				}
+			if isCopyNeeded(fpath, finfo, targetPath) == false {
+				return nil
 			}
 
 			//
@@ -226,13 +145,11 @@ func fastCopy() error {
 				}
 
 				atomic.AddInt64(&totalWriteSize, finfo.Size())
+				if totalNum%100 == 0 {
+					updateTotalSpeed()
+				}
 				return nil
 			}
-
-			// fmode := int(0)
-			// 0: send path string
-			// 1: cache file data in memory
-			// -1: _COPYSTATUS = Done
 
 			ele, err := file2CopyElement(fpath, targetPath, finfo, 0)
 			if err != nil {
@@ -245,11 +162,7 @@ func fastCopy() error {
 			return nil
 		})
 
-		if IsSerial {
-			fmt.Printf(" %s %10d\r", ":::", num)
-		} else {
-			fmt.Printf(" %s %10d, %10d, %25dMB/s\r", ":::", len(chanFile), num, totalSpeed>>20)
-		}
+		updateTotalSpeed()
 
 		//
 		copyAllDone := CopyElement{}
@@ -267,11 +180,19 @@ func fastCopy() error {
 
 	close(chanFile)
 
-	fmt.Println("------------------------------------------------------------")
+	printCopyResult()
+
+	return nil
+}
+
+func printCopyResult() error {
+	sep := "------------------------------------------------------------"
+	fmt.Printf("\n%s\n", sep)
+	updateTotalSpeed()
 	var allIgnoredFiles int
 	for k, v := range numStatistics {
 		if strings.HasPrefix(k, "skip_") {
-			fmt.Printf("\n** Ignored: %20s: %10v", k, v)
+			fmt.Printf("** Ignored: %20s: %10v\n", k, v)
 			allIgnoredFiles += v
 		}
 	}
@@ -280,15 +201,13 @@ func fastCopy() error {
 
 	for k, v := range numStatistics {
 		if strings.HasPrefix(k, "skip_") == false {
-			fmt.Printf("\n** Copied: %20s: %10v", k, v)
+			fmt.Printf("** Copied: %21s: %10v", k, v)
 		}
 	}
 
-	if IsSerial {
-		fmt.Printf("\n\n** Files: Total: %d, Copied: %d **\n", num, (num - allIgnoredFiles))
-	} else {
-		fmt.Printf("\n\n** Files: Total: %d, Copied: %d, Write: %d MB, Speed: %d MB/s **\n", num, (num - allIgnoredFiles), totalWriteSize>>20, totalSpeed>>20)
-	}
+	fmt.Printf("\n%s\n", sep)
+	fmt.Printf("** Files: Total: %d, Copied: %d, Write: %d MB, Speed: %d MB/s **\n", totalNum, (totalNum - allIgnoredFiles), totalWriteSize>>20, totalSpeed>>20)
+
 	return nil
 }
 
@@ -331,6 +250,71 @@ func updateTargetDir() error {
 		DebugInfo("updateTargetDir", (t2 - t1), " (sec)/", len(dirList))
 	}
 	return nil
+}
+
+func isCopyNeeded(fpath string, finfo os.FileInfo, targetPath string) bool {
+	if IsOverwrite == false {
+		if FileExists(targetPath) {
+			numStatistics["skip_exists"]++
+			return false
+		}
+	}
+
+	if FileExt != "" {
+		if fextMatch.MatchString(filepath.Ext(fpath)) == false {
+			numStatistics["skip_file_ext"]++
+			return false
+		}
+	}
+
+	if IsIgnoreDotFile == true {
+		if strings.HasPrefix(filepath.Base(fpath), ".") {
+			numStatistics["skip_dot_file"]++
+			return false
+		}
+	}
+
+	if ExcludeDir != "" {
+		excludePath := strings.Replace(fpath, SourceDir, ExcludeDir, 1)
+
+		if FileExists(excludePath) {
+			numStatistics["skip_exclude_dir"]++
+			DebugInfo("FastCopy: SKIP", excludePath)
+			return false
+		}
+	}
+
+	if MinSize != -1 {
+		if finfo.Size() < MinSize {
+			numStatistics["skip_size_min"]++
+			return false
+		}
+	}
+
+	if MaxSize != -1 {
+		if finfo.Size() > MaxSize {
+			numStatistics["skip_size_max"]++
+			return false
+		}
+	}
+
+	if MinAge != "" {
+		minAge := TimeStr2Unix(MinAge)
+		if finfo.ModTime().Unix() < minAge {
+			numStatistics["skip_age_min"]++
+			return false
+		}
+	}
+
+	if MaxAge != "" {
+		maxAge := TimeStr2Unix(MaxAge)
+		if finfo.ModTime().Unix() > maxAge {
+			numStatistics["skip_age_max"]++
+			return false
+		}
+	}
+
+	return true
 }
 
 func taskChanFile() error {
