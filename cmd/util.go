@@ -153,7 +153,7 @@ func flagsValidate() error {
 	return nil
 }
 
-func isSymblink(src string) bool {
+func isSymlink(src string) bool {
 	linfo, err := os.Lstat(src)
 	if err != nil {
 		PrintError("isSymblink", err)

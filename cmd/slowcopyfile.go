@@ -15,7 +15,6 @@ func copyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
 		} else {
 			PrintError("simdCopyFile", err)
 		}
-
 	}
 
 	writeSize, err = slowCopyFile(src, dst, finfo)
@@ -86,15 +85,18 @@ func copyLink(src, dst string) (n int, err error) {
 			PrintError("copyLink", err)
 			return 0, err
 		}
-		DebugInfo("copyLink: original", src, " -> ", srcLinkTarget)
+		//DebugInfo("copyLink: original", src, " -> ", srcLinkTarget)
 		srcLinkTarget = strings.Replace(srcLinkTarget, SourceDir, TargetDir, 1)
-		DebugInfo("copyLink: replaced", src, " -> ", srcLinkTarget)
+		//DebugInfo("copyLink: replaced", src, " -> ", srcLinkTarget)
 
 		MakeDirs(filepath.Dir(dst))
 
 		err = os.Symlink(srcLinkTarget, dst)
-		PrintError("copyLink: Symlink", err)
-
+		if err != nil {
+			PrintError("copyLink: Symlink", err)
+			return 0, err
+		}
+		return 1, nil
 	}
-	return 1, nil
+	return 0, ErrNotSymLink
 }

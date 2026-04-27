@@ -1,7 +1,8 @@
 package cmd
 
 import (
-	"os"
+	"errors"
+	"io/fs"
 	"regexp"
 	"runtime"
 )
@@ -24,7 +25,7 @@ var (
 	totalWriteSize int64                  = 0
 	totalSpeed     int64                  = 0
 	totalNum       int                    = 0
-	dirList        map[string]os.FileInfo = make(map[string]os.FileInfo, 2048)
+	dirList        map[string]fs.DirEntry = make(map[string]fs.DirEntry, 2048)
 )
 
 var (
@@ -43,3 +44,7 @@ var (
 var numStatistics map[string]int
 
 var fextMatch *regexp.Regexp
+
+var (
+	ErrNotSymLink error = errors.New("invalid symlink")
+)

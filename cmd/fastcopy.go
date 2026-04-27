@@ -96,74 +96,13 @@ func fastCopy() error {
 	go func() error {
 		defer wg.Done()
 
-		var targetPath string
-
-		filepath.Walk(SourceDir, func(fpath string, finfo os.FileInfo, err error) error {
-			if err != nil {
-				PrintError("FastCopy: walk", err)
-				return err
-			}
-
-			fpath = ToUnixSlash(fpath)
-			targetPath = ToUnixSlash(strings.Replace(fpath, SourceDir, TargetDir, 1))
-
-			if finfo.IsDir() {
-				if IsIgnoreEmptyFolder {
-					return nil
-				}
-
-				D2Dir := strings.Replace(fpath, SourceDir, TargetDir, 1)
-				MakeDirs(D2Dir)
-				dirList[targetPath] = finfo
-				return nil
-			}
-
-			totalNum++
-
-			if isSymblink(fpath) {
-				nl, err := copyLink(fpath, targetPath)
-				if err == nil {
-					if nl == 0 {
-						numStatistics["skip_exists"]++
-					} else {
-						numStatistics["symbol_link"] += 1
-					}
-				}
-				return nil
-			}
-
-			if isCopyNeeded(fpath, finfo, targetPath) == false {
-				return nil
-			}
-
-			//
-			if IsSerial {
-				_, err = copyFile(fpath, targetPath, finfo)
-				if err != nil {
-					PrintError("FastCopy: copyFile", err)
-					return err
-				}
-
-				atomic.AddInt64(&totalWriteSize, finfo.Size())
-				if totalNum%100 == 0 {
-					updateTotalSpeed()
-				}
-				return nil
-			}
-
-			ele, err := file2CopyElement(fpath, targetPath, finfo, 0)
-			if err != nil {
-				PrintError("FastCopy: file2CopyElement", err)
-				return err
-			}
-
-			chanFile <- ele
-
-			return nil
-		})
+		if IsSerial {
+			taskWalkSerial()
+		} else {
+			taskWalkAsync()
+		}
 
 		updateTotalSpeed()
-
 		//
 		copyAllDone := CopyElement{}
 
@@ -238,7 +177,9 @@ func updateTargetDir() error {
 	if len(dirList) > 0 {
 		var err error
 		t1 := GetNowUnix()
-		for dstPath, srcInfo := range dirList {
+		var srcInfo fs.FileInfo
+		for dstPath, srcDirInfo := range dirList {
+			srcInfo, _ = srcDirInfo.Info()
 			err = os.Chtimes(dstPath, srcInfo.ModTime(), srcInfo.ModTime())
 			PrintError("updateTargetDir: os.Chtimes", err)
 
@@ -252,7 +193,7 @@ func updateTargetDir() error {
 	return nil
 }
 
-func isCopyNeeded(fpath string, finfo os.FileInfo, targetPath string) bool {
+func isCopyNeeded(fpath string, finfo fs.FileInfo, targetPath string) bool {
 	if IsOverwrite == false {
 		if FileExists(targetPath) {
 			numStatistics["skip_exists"]++
@@ -276,12 +217,15 @@ func isCopyNeeded(fpath string, finfo os.FileInfo, targetPath string) bool {
 
 	if ExcludeDir != "" {
 		excludePath := strings.Replace(fpath, SourceDir, ExcludeDir, 1)
-
 		if FileExists(excludePath) {
 			numStatistics["skip_exclude_dir"]++
-			DebugInfo("FastCopy: SKIP", excludePath)
+			DebugInfo("isCopyNeeded: SKIP", excludePath)
 			return false
 		}
+	}
+
+	if finfo == nil {
+		return true
 	}
 
 	if MinSize != -1 {
@@ -299,16 +243,14 @@ func isCopyNeeded(fpath string, finfo os.FileInfo, targetPath string) bool {
 	}
 
 	if MinAge != "" {
-		minAge := TimeStr2Unix(MinAge)
-		if finfo.ModTime().Unix() < minAge {
+		if finfo.ModTime().Unix() < TimeStr2Unix(MinAge) {
 			numStatistics["skip_age_min"]++
 			return false
 		}
 	}
 
 	if MaxAge != "" {
-		maxAge := TimeStr2Unix(MaxAge)
-		if finfo.ModTime().Unix() > maxAge {
+		if finfo.ModTime().Unix() > TimeStr2Unix(MaxAge) {
 			numStatistics["skip_age_max"]++
 			return false
 		}
@@ -353,5 +295,116 @@ func taskChanFile() error {
 	}
 	wgGetChanFile.Wait()
 
+	return nil
+}
+
+func taskWalkSerial() error {
+	var targetPath string
+	filepath.Walk(SourceDir, func(fpath string, finfo os.FileInfo, err error) error {
+		if err != nil {
+			PrintError("taskWalkSerial", err)
+			return err
+		}
+		fpath = ToUnixSlash(fpath)
+		targetPath = ToUnixSlash(strings.Replace(fpath, SourceDir, TargetDir, 1))
+
+		if finfo.IsDir() {
+			if IsIgnoreEmptyFolder {
+				return nil
+			}
+			D2Dir := strings.Replace(fpath, SourceDir, TargetDir, 1)
+			MakeDirs(D2Dir)
+			dirList[targetPath] = fs.FileInfoToDirEntry(finfo)
+			return nil
+		}
+
+		totalNum++
+		if finfo.Mode()&os.ModeSymlink != 0 {
+			nl, err := copyLink(fpath, targetPath)
+			if err == nil {
+				if nl == 0 {
+					numStatistics["skip_exists"]++
+				} else {
+					numStatistics["symbol_link"] += 1
+				}
+			}
+			return nil
+		}
+
+		if isCopyNeeded(fpath, finfo, targetPath) == false {
+			return nil
+		}
+		//
+		_, err = copyFile(fpath, targetPath, finfo)
+		if err != nil {
+			PrintError("taskWalkSerial: copyFile", err)
+			return err
+		}
+		atomic.AddInt64(&totalWriteSize, finfo.Size())
+		if totalNum%50 == 0 {
+			updateTotalSpeed()
+		}
+
+		return nil
+	})
+	return nil
+}
+
+func taskWalkAsync() error {
+	var targetPath string
+	filepath.WalkDir(SourceDir, func(fpath string, dirInfo fs.DirEntry, err error) error {
+		if err != nil {
+			PrintError("taskWalkParallel", err)
+			return err
+		}
+		fpath = ToUnixSlash(fpath)
+		targetPath = ToUnixSlash(strings.Replace(fpath, SourceDir, TargetDir, 1))
+
+		if dirInfo.IsDir() {
+			if IsIgnoreEmptyFolder {
+				return nil
+			}
+			D2Dir := strings.Replace(fpath, SourceDir, TargetDir, 1)
+			MakeDirs(D2Dir)
+			dirList[targetPath] = dirInfo
+			return nil
+		}
+
+		totalNum++
+		if dirInfo.Type()&os.ModeSymlink != 0 {
+			nl, err := copyLink(fpath, targetPath)
+			if err == nil {
+				if nl == 0 {
+					numStatistics["skip_exists"]++
+				} else {
+					numStatistics["symbol_link"] += 1
+				}
+			}
+			return nil
+		}
+
+		if MinSize != -1 && MaxSize != -1 && MinAge != "" && MaxAge != "" {
+			if isCopyNeeded(fpath, nil, targetPath) == false {
+				return nil
+			}
+		}
+
+		finfo, err := dirInfo.Info()
+		PrintError("taskWalkParallel", err)
+
+		if isCopyNeeded(fpath, finfo, targetPath) == false {
+			return nil
+		}
+
+		//
+		ele, err := file2CopyElement(fpath, targetPath, finfo, 0)
+		if err != nil {
+			PrintError("taskWalkParallel: file2CopyElement", err)
+			return err
+		}
+		chanFile <- ele
+
+		return nil
+	})
 	return nil
 }
