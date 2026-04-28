@@ -27,6 +27,9 @@ func bootstrap() error {
 	//
 	numStatistics["symbol_link"] = 0
 	//
+	copymode = make(map[int]string, 3)
+	copymode[0] = "zero copy"
+	copymode[1] = "simd copy"
 
 	fextMatch = regexp.MustCompile("(?i)" + FileExt)
 
@@ -122,7 +125,7 @@ func argsValidate() error {
 	}
 
 	if minAge > 0 && maxAge > 0 && minAge > maxAge {
-		PrintError("FlagsValidate", NewError("--min-age= cannot be greater than --max-age= "))
+		PrintError("argsValidate", NewError("--min-age= cannot be greater than --max-age= "))
 		ExitWithNum(0)
 	}
 
@@ -143,23 +146,27 @@ func argsValidate() error {
 	}
 
 	if MinSize > -1 && MaxSize > -1 && MinSize > MaxSize {
-		PrintError("FlagsValidate", NewError("--min-size= cannot be greater than --max-size= "))
+		PrintError("argsValidate", NewError("--min-size= cannot be greater than --max-size= "))
 		ExitWithNum(0)
 	}
 
 	if MinSize < -1 || MaxSize < -1 {
-		PrintError("FlagsValidate", NewError("--min-size= or --max-size= should be greater than 0 "))
+		PrintError("argsValidate", NewError("--min-size= or --max-size= should be greater than 0 "))
 		ExitWithNum(0)
 	}
 
 	bootstrap()
+	copymodestr := "slow copy"
+	if _, ok := copymode[CopyMode]; ok {
+		copymodestr = copymode[CopyMode]
+	}
 
 	FormatPrint("wide", "CopyElementWidth", unsafe.Sizeof(CopyElement{}))
 	FormatPrint("wide", "ignore-dot-files", IsIgnoreDotFile)
 	FormatPrint("wide", "ignore-empty-folder", IsIgnoreEmptyFolder)
 	FormatPrint("wide", "overwrite-existing-files", IsOverwrite)
 	FormatPrint("wide", "serial", IsSerial)
-	FormatPrint("wide", "copy-mode", CopyMode)
+	FormatPrint("wide", "copy-mode", CopyMode, copymodestr)
 	FormatPrint("wide", "purge", IsPurge)
 	FormatPrint("wide", "cpu", numCPU, cpuFlags)
 	FormatPrint("wide", "threads", qcap)
@@ -227,6 +234,10 @@ func Int64Int(n int64) int {
 
 func GetNowUnix() int64 {
 	return time.Now().UTC().Unix()
+}
+
+func GetNowUnixMilli() int64 {
+	return time.Now().UTC().UnixMilli()
 }
 
 func ToUnixSlash(s string) string {

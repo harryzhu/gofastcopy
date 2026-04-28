@@ -15,6 +15,10 @@ const (
 )
 
 var (
+	copymode map[int]string
+)
+
+var (
 	// must be in multiples of 64
 	bufSize int = 64 << 10
 )
