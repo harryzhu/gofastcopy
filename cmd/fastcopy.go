@@ -60,9 +60,7 @@ func getChanFileToDisk(ele CopyElement) error {
 }
 
 func fastCopy() error {
-
 	wg := sync.WaitGroup{}
-
 	wg.Add(3)
 
 	go func() error {
@@ -72,14 +70,13 @@ func fastCopy() error {
 				break
 			}
 
-			if totalNum < 99 || totalNum%100 == 0 {
+			if totalNum > 99 || totalNum%100 == 0 {
 				updateTotalSpeed()
 				if IsSerial {
 					fmt.Printf(" %s %10d, %20dMB/s\r", ":::", totalNum, totalSpeed>>20)
 				} else {
 					fmt.Printf(" %s %10d, %10d, %25dMB/s,  %s\r", ":::", len(chanFile), totalNum, totalSpeed>>20, memString)
 				}
-
 			}
 		}
 		return nil
@@ -104,12 +101,6 @@ func fastCopy() error {
 
 		updateTotalSpeed()
 		//
-		copyAllDone := CopyElement{}
-
-		copyAllDone.Fsrc = ""
-		copyAllDone.Fdst = ""
-		copyAllDone.CopyMode = -1
-		// CopyMode = -1 means COPY STATUS = Done
 		chanFile <- copyAllDone
 
 		return nil
@@ -125,8 +116,7 @@ func fastCopy() error {
 }
 
 func printCopyResult() error {
-	sep := "------------------------------------------------------------"
-	fmt.Printf("\n%s\n", sep)
+	fmt.Printf("\n%s\n", SEP)
 	updateTotalSpeed()
 	var allIgnoredFiles int
 	for k, v := range numStatistics {
@@ -144,14 +134,13 @@ func printCopyResult() error {
 		}
 	}
 
-	fmt.Printf("\n%s\n", sep)
-	fmt.Printf("** Files: Total: %d, Copied: %d, Write: %d MB, Speed: %d MB/s **\n", totalNum, (totalNum - allIgnoredFiles), totalWriteSize>>20, totalSpeed>>20)
+	fmt.Printf("\n%s\n", SEP)
+	fmt.Printf("** Total: %d, Copied: %d, Write: %d MB, Speed: %d MB/s **\n", totalNum, (totalNum - allIgnoredFiles), totalWriteSize>>20, totalSpeed>>20)
 
 	return nil
 }
 
 func purgeTargetDir() error {
-	var e1, e2 error
 	SourceDir = ToUnixSlash(SourceDir)
 	TargetDir = ToUnixSlash(TargetDir)
 	filepath.WalkDir(TargetDir, func(dstPath string, finfo fs.DirEntry, err error) error {
@@ -163,9 +152,9 @@ func purgeTargetDir() error {
 		dstPath = ToUnixSlash(dstPath)
 
 		srcPath := strings.Replace(dstPath, strings.TrimRight(TargetDir, "/"), strings.TrimRight(SourceDir, "/"), 1)
-		if _, e1 = os.Stat(srcPath); e1 != nil {
-			e2 = os.Remove(dstPath)
-			PrintError("purgeTargetDir:os.Remove", e2)
+		if FileExists(srcPath) == false {
+			err = os.Remove(dstPath)
+			PrintError("purgeTargetDir:os.Remove", err)
 		}
 
 		return nil

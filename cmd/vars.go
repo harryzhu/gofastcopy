@@ -11,6 +11,7 @@ const (
 	MB int64 = 1 << 20
 	//
 	uMB uint64 = 1 << 20
+	SEP string = "------------------------------------------------------------"
 )
 
 var (
@@ -47,4 +48,8 @@ var fextMatch *regexp.Regexp
 
 var (
 	ErrNotSymLink error = errors.New("invalid symlink")
+)
+
+var (
+	copyAllDone CopyElement = CopyElement{Fsrc: "", Fdst: "", CopyMode: -1}
 )

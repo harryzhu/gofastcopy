@@ -31,7 +31,7 @@ var (
 	IsWithTimeUTC     bool
 	IsWithMemStats    bool
 	IsSerial          bool
-	IsSIMD            bool
+	CopyMode          int
 )
 
 var (
@@ -48,34 +48,31 @@ var rootCmd = &cobra.Command{
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		timeStart = GetNowUnix()
-
 		SourceDir = strings.TrimRight(ToUnixSlash(SourceDir), "/")
 		TargetDir = strings.TrimRight(ToUnixSlash(TargetDir), "/")
 		ExcludeDir = strings.TrimRight(ToUnixSlash(ExcludeDir), "/")
 
-		fmt.Println("-----")
-		flagsValidate()
-
-		fmt.Println("-----")
-
+		fmt.Println(SEP)
+		argsValidate()
+		fmt.Println(SEP)
+		//
+		timeStart = GetNowUnix()
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		if IsPurge {
 			purgeTargetDir()
 		}
-
-		timeStart = GetNowUnix()
 		//
 		fastCopy()
 		updateTargetDir()
-		//
-		timeStop = GetNowUnix()
+
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		timeStop = GetNowUnix()
 		if timeStart > 0 && timeStop > 0 {
 			fmt.Printf("\n***** Elapse: %v (sec) *****\n", (timeStop - timeStart))
 		}
+
 	},
 }
 
@@ -92,15 +89,16 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&IsDebug, "debug", false, "if print debug info")
 	//
 	rootCmd.PersistentFlags().BoolVar(&IsWithLimitMemory, "with-mem-limit", false, "run with low momery, task will be forced to 4 threads")
-	rootCmd.PersistentFlags().BoolVar(&IsWithTimeUTC, "with-time-utc", false, "use UTC timezone with parameter --min-age / --max-age")
+	rootCmd.PersistentFlags().BoolVar(&IsWithTimeUTC, "with-time-utc", false, "use UTC timezone for parameter --min-age / --max-age")
 	rootCmd.PersistentFlags().BoolVar(&IsWithMemStats, "with-mem-stats", false, "if print memory stats")
 	rootCmd.PersistentFlags().BoolVar(&IsSerial, "serial", false, "optimization for hard disk, not for ssd")
-	rootCmd.PersistentFlags().BoolVar(&IsSIMD, "simd", true, "if use SIMD to accelerate")
+	rootCmd.PersistentFlags().IntVar(&CopyMode, "copy-mode", 0, "mode: 0 = zero copy, 1 = simd copy, default = slow copy")
 	//
 	rootCmd.Flags().BoolVar(&IsIgnoreDotFile, "ignore-dot-file", false, "ignore the file if its file name starts with dot(.), i.e.: .DS_Store")
 	rootCmd.Flags().BoolVar(&IsIgnoreEmptyFolder, "ignore-empty-folder", false, "ignore the folder if it contains nothing")
 	rootCmd.Flags().BoolVar(&IsOverwrite, "overwrite", false, "allow to overwrite the existing files")
 	rootCmd.Flags().BoolVar(&IsPurge, "purge", false, "delete files in --target-dir but NOT in --source-dir")
+
 	//
 	rootCmd.Flags().StringVar(&SourceDir, "source-dir", "", "source folder")
 	rootCmd.Flags().StringVar(&TargetDir, "target-dir", "", "destination folder")

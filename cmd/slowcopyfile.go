@@ -8,7 +8,16 @@ import (
 )
 
 func copyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
-	if IsSIMD {
+	if CopyMode == 0 {
+		writeSize, err = zeroCopyFile(src, dst, finfo)
+		if err == nil {
+			return writeSize, nil
+		} else {
+			PrintError("zeroCopyFile", err)
+		}
+	}
+
+	if CopyMode == 1 {
 		writeSize, err = simdCopyFile(src, dst, finfo)
 		if err == nil {
 			return writeSize, err
@@ -18,6 +27,7 @@ func copyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
 	}
 
 	writeSize, err = slowCopyFile(src, dst, finfo)
+	PrintError("slowCopyFile", err)
 
 	return writeSize, err
 }
@@ -99,4 +109,42 @@ func copyLink(src, dst string) (n int, err error) {
 		return 1, nil
 	}
 	return 0, ErrNotSymLink
+}
+
+func zeroCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
+	srcFileHandler, err := os.Open(src)
+	if err != nil {
+		PrintError("zeroCopyFile: os.Open", err)
+		return 0, err
+	}
+	defer srcFileHandler.Close()
+
+	dstTemp := strings.Join([]string{dst, "ing"}, ".")
+
+	MakeDirs(filepath.Dir(dstTemp))
+
+	dstFileHandler, err := os.Create(dstTemp)
+	if err != nil {
+		PrintError("zeroCopyFile: os.Create", err)
+		return 0, err
+	}
+	defer dstFileHandler.Close()
+
+	writeSize, err = dstFileHandler.ReadFrom(srcFileHandler)
+	PrintError("zeroCopyFile: os.Open", err)
+
+	srcFileHandler.Close()
+	dstFileHandler.Close()
+
+	err = os.Rename(dstTemp, dst)
+	if err != nil {
+		PrintError("zeroCopyFile: os.Rename", err)
+		return 0, err
+	}
+
+	if err := chmodFile(dst, finfo); err != nil {
+		return 0, err
+	}
+
+	return writeSize, nil
 }

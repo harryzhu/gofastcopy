@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -48,6 +49,7 @@ func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 	defer syscall.Close(srcFd)
 
 	dstTemp := strings.Join([]string{dst, "ing"}, ".")
+	MakeDirs(filepath.Dir(dstTemp))
 	dstFd, err := syscall.Open(dstTemp, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, 0644)
 	if err != nil {
 		return 0, err

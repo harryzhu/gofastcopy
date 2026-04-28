@@ -14,12 +14,6 @@ func bootstrap() error {
 	qcap = getThreadNum()
 
 	cpuFlags = getCPUFlags()
-	if IsSIMD {
-		if cpuFlags == "" {
-			IsSIMD = false
-		}
-	}
-	fmt.Println("CopyElementWidth:", unsafe.Sizeof(CopyElement{}))
 
 	numStatistics = make(map[string]int)
 	numStatistics["skip_dot_file"] = 0
@@ -39,7 +33,26 @@ func bootstrap() error {
 	return nil
 }
 
-func flagsValidate() error {
+func FormatPrint(ftype string, key string, args ...any) error {
+	var s []string
+	for _, arg := range args {
+		s = append(s, fmt.Sprintf("%v", arg))
+	}
+	var f0 string
+	switch {
+	case ftype == "short":
+		f0 = "%12s: %-20v\n"
+	case ftype == "wide":
+		f0 = "%25s: %-20v\n"
+	default:
+		f0 = "%12s: %-20v\n"
+
+	}
+	fmt.Printf(f0, key, strings.Join(s, " "))
+	return nil
+}
+
+func argsValidate() error {
 	if SourceDir == "" || TargetDir == "" || SourceDir == TargetDir {
 		PrintError("gofastcopy", NewError("--source-dir=  --target-dir=  cannot be empty or same"))
 		os.Exit(0)
@@ -50,9 +63,10 @@ func flagsValidate() error {
 		ExitWithNum(0)
 	}
 
-	fmt.Printf("SourceDir: %v\n", SourceDir)
-	fmt.Printf("TargetDir: %v\n", TargetDir)
-	fmt.Printf("ExcludeDir: %v\n", ExcludeDir)
+	FormatPrint("short", "SourceDir", SourceDir)
+	FormatPrint("short", "TargetDir", TargetDir)
+	FormatPrint("short", "ExcludeDir", ExcludeDir)
+	fmt.Println(SEP)
 	//
 
 	finfo, err := os.Stat(SourceDir)
@@ -91,20 +105,20 @@ func flagsValidate() error {
 	}
 
 	if FileExt != "" {
-		fmt.Println("FileExtenion: ", FileExt)
+		FormatPrint("wide", "FileExtenion", FileExt)
 	} else {
-		fmt.Println("FileExtenion: *")
+		FormatPrint("wide", "FileExtenion", "*")
 	}
 
 	var minAge, maxAge int64
 	if MinAge != "" {
 		minAge = TimeStr2Unix(MinAge)
-		fmt.Println("latest-update-time: min: ", minAge)
+		FormatPrint("wide", "latest-update-time: min", minAge)
 	}
 
 	if MaxAge != "" {
 		maxAge = TimeStr2Unix(MaxAge)
-		fmt.Println("latest-update-time: max: ", maxAge)
+		FormatPrint("wide", "latest-update-time: max", maxAge)
 	}
 
 	if minAge > 0 && maxAge > 0 && minAge > maxAge {
@@ -121,11 +135,11 @@ func flagsValidate() error {
 	}
 
 	if MinSize != -1 {
-		fmt.Println("file-size: min: ", MinSize)
+		FormatPrint("wide", "file-size: min", MinSize)
 	}
 
 	if MaxSize != -1 {
-		fmt.Println("file-size: max: ", MaxSize)
+		FormatPrint("wide", "file-size: max", MaxSize)
 	}
 
 	if MinSize > -1 && MaxSize > -1 && MinSize > MaxSize {
@@ -140,16 +154,17 @@ func flagsValidate() error {
 
 	bootstrap()
 
-	fmt.Println("ignore-dot-files: ", IsIgnoreDotFile)
-	fmt.Println("ignore-empty-folder: ", IsIgnoreEmptyFolder)
-	fmt.Println("overwrite-existing-files: ", IsOverwrite)
-	fmt.Println("serial: ", IsSerial)
-	fmt.Println("simd: ", IsSIMD)
-	fmt.Println("purge: ", IsPurge)
-	fmt.Println("cpu: ", numCPU, cpuFlags)
-	fmt.Println("threads: ", qcap)
-	fmt.Println("buffer: ", bufSize)
-	fmt.Println("Time: ", time.Now().Format("2006-01-02 15:04:05"))
+	FormatPrint("wide", "CopyElementWidth", unsafe.Sizeof(CopyElement{}))
+	FormatPrint("wide", "ignore-dot-files", IsIgnoreDotFile)
+	FormatPrint("wide", "ignore-empty-folder", IsIgnoreEmptyFolder)
+	FormatPrint("wide", "overwrite-existing-files", IsOverwrite)
+	FormatPrint("wide", "serial", IsSerial)
+	FormatPrint("wide", "copy-mode", CopyMode)
+	FormatPrint("wide", "purge", IsPurge)
+	FormatPrint("wide", "cpu", numCPU, cpuFlags)
+	FormatPrint("wide", "threads", qcap)
+	FormatPrint("wide", "buffer", bufSize)
+	FormatPrint("wide", "Time", time.Now().Format("2006-01-02 15:04:05"))
 	return nil
 }
 
@@ -189,7 +204,7 @@ func MakeDirs(dpath string) error {
 	dpath = ToUnixSlash(dpath)
 	_, err := os.Stat(dpath)
 	if err != nil {
-		//DebugInfo("MakeDirs", dpath)
+		DebugInfo("MakeDirs", dpath)
 		err = os.MkdirAll(dpath, os.ModePerm)
 		PrintError("MakeDirs:MkdirAll", err)
 		return err
