@@ -128,9 +128,9 @@ gofastcopy  --serial 需要 251 秒，比 rsync 快了 26 秒
 # --with-mem-stats 默认为 false ：运行时是否动态显示程序当前的内存分配、GC的处罚次数
 # --with-time-utc 默认为 false ： max-age/min-age 比较时间时，默认使用本地时间，如果要使用UTC时区时间，此项设置为 true
 #
-# --threads 默认为 0（即自动计算）：强制指定并行线程数，默认线程数限制在32～128之间，该参数可以无限制强制指定线程数
+# --threads 默认为 0（即自动计算）：强制指定并行线程数，默认线程数限制在16～128之间，该参数可以无限制强制指定线程数
 #
 # --serial  默认为 false ：将文件复制模式由默认的并行改为传统的串行模式，在机械硬盘上速度更快，如果是机械硬盘，一定要设置 --serial=true
-# --simd  默认为 true ：是否启用SIMD指令加速，在64位的intel和amd和apple的M系列CPU上面默认启用，如果设置为false，将采用兼容性更好但速度略慢的复制方式。
+# --copy-mode 默认为 0 ： 复制模式：0 = ReadFrom， 1 = SIMD copy， 2 = Slow copy。
 #
 
