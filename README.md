@@ -125,7 +125,7 @@ gofastcopy  --serial 需要 251 秒，比 rsync 快了 26 秒
 # --purge 默认为 false ： 是否删除目标文件夹中存在但源文件夹中不存在的文件，即是否清理目标文件夹中多余的文件
 #
 # --with-mem-limit 默认为 false ： 低内存模式，并行任务固定为 4.
-# --with-mem-stats 默认为 false ：运行时是否动态显示程序当前的内存分配、GC的处罚次数
+# --with-mem-stats 默认为 false ：运行时是否动态显示程序当前的内存分配、GC的触发次数
 # --with-time-utc 默认为 false ： max-age/min-age 比较时间时，默认使用本地时间，如果要使用UTC时区时间，此项设置为 true
 #
 # --threads 默认为 0（即自动计算）：强制指定并行线程数，默认线程数限制在16～128之间，该参数可以无限制强制指定线程数
