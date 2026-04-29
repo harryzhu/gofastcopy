@@ -45,8 +45,7 @@ func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 	if err != nil {
 		return 0, err
 	}
-
-	defer syscall.Close(srcFd)
+	//defer syscall.Close(srcFd)
 
 	dstTemp := strings.Join([]string{dst, "ing"}, ".")
 	MakeDirs(filepath.Dir(dstTemp))
@@ -54,7 +53,8 @@ func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 	if err != nil {
 		return 0, err
 	}
-	defer syscall.Close(dstFd)
+	// defer: does not work on windows
+	// defer syscall.Close(dstFd)
 
 	buf := make([]byte, bufSize)
 	alignedBuf := alignBuffer(buf)
@@ -72,6 +72,9 @@ func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 			return 0, err
 		}
 	}
+	// on windows, must close manually
+	syscall.Close(dstFd)
+	syscall.Close(srcFd)
 
 	if err := os.Rename(dstTemp, dst); err != nil {
 		return 0, err

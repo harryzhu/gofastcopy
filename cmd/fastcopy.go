@@ -343,7 +343,7 @@ func taskWalkAsync() error {
 	var targetPath string
 	filepath.WalkDir(SourceDir, func(fpath string, dirInfo fs.DirEntry, err error) error {
 		if err != nil {
-			PrintError("taskWalkParallel", err)
+			PrintError("taskWalkAsync", err)
 			return err
 		}
 		fpath = ToUnixSlash(fpath)
@@ -379,7 +379,7 @@ func taskWalkAsync() error {
 		}
 
 		finfo, err := dirInfo.Info()
-		PrintError("taskWalkParallel", err)
+		PrintError("taskWalkAsync", err)
 
 		if isCopyNeeded(fpath, finfo, targetPath) == false {
 			return nil
@@ -388,7 +388,7 @@ func taskWalkAsync() error {
 		//
 		ele, err := file2CopyElement(fpath, targetPath, finfo, 0)
 		if err != nil {
-			PrintError("taskWalkParallel: file2CopyElement", err)
+			PrintError("taskWalkAsync: file2CopyElement", err)
 			return err
 		}
 		chanFile <- ele

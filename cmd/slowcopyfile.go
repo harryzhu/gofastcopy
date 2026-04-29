@@ -38,7 +38,6 @@ func slowCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 		PrintError("CopyFile: os.Open", err)
 		return 0, err
 	}
-	defer srcFileHandler.Close()
 
 	dstTemp := strings.Join([]string{dst, "ing"}, ".")
 
@@ -49,7 +48,6 @@ func slowCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 		PrintError("CopyFile: os.Create", err)
 		return 0, err
 	}
-	defer dstFileHandler.Close()
 
 	buf := make([]byte, bufSize)
 	_, err = io.CopyBuffer(dstFileHandler, srcFileHandler, buf)
@@ -117,7 +115,6 @@ func zeroCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 		PrintError("zeroCopyFile: os.Open", err)
 		return 0, err
 	}
-	defer srcFileHandler.Close()
 
 	dstTemp := strings.Join([]string{dst, "ing"}, ".")
 
@@ -128,7 +125,6 @@ func zeroCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 		PrintError("zeroCopyFile: os.Create", err)
 		return 0, err
 	}
-	defer dstFileHandler.Close()
 
 	writeSize, err = dstFileHandler.ReadFrom(srcFileHandler)
 	PrintError("zeroCopyFile: os.Open", err)
