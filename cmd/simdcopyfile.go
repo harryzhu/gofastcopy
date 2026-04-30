@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -45,16 +44,12 @@ func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 	if err != nil {
 		return 0, err
 	}
-	//defer syscall.Close(srcFd)
 
 	dstTemp := strings.Join([]string{dst, "ing"}, ".")
-	MakeDirs(filepath.Dir(dstTemp))
 	dstFd, err := syscall.Open(dstTemp, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, 0644)
 	if err != nil {
 		return 0, err
 	}
-	// defer: does not work on windows
-	// defer syscall.Close(dstFd)
 
 	buf := make([]byte, bufSize)
 	alignedBuf := alignBuffer(buf)
@@ -72,7 +67,7 @@ func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 			return 0, err
 		}
 	}
-	// on windows, must close manually
+
 	syscall.Close(dstFd)
 	syscall.Close(srcFd)
 

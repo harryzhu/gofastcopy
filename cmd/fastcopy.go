@@ -143,7 +143,7 @@ func printCopyResult() error {
 func purgeTargetDir() error {
 	SourceDir = ToUnixSlash(SourceDir)
 	TargetDir = ToUnixSlash(TargetDir)
-	filepath.WalkDir(TargetDir, func(dstPath string, finfo fs.DirEntry, err error) error {
+	filepath.WalkDir(TargetDir, func(dstPath string, dirInfo fs.DirEntry, err error) error {
 		if err != nil {
 			PrintError("purgeTargetDir: walkdir", err)
 			return err

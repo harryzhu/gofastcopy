@@ -8,6 +8,8 @@ import (
 )
 
 func copyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
+	MakeDirs(filepath.Dir(dst))
+
 	if CopyMode == 0 {
 		writeSize, err = zeroCopyFile(src, dst, finfo)
 		if err == nil {
@@ -40,9 +42,6 @@ func slowCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 	}
 
 	dstTemp := strings.Join([]string{dst, "ing"}, ".")
-
-	MakeDirs(filepath.Dir(dstTemp))
-
 	dstFileHandler, err := os.Create(dstTemp)
 	if err != nil {
 		PrintError("CopyFile: os.Create", err)
@@ -117,9 +116,6 @@ func zeroCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 	}
 
 	dstTemp := strings.Join([]string{dst, "ing"}, ".")
-
-	MakeDirs(filepath.Dir(dstTemp))
-
 	dstFileHandler, err := os.Create(dstTemp)
 	if err != nil {
 		PrintError("zeroCopyFile: os.Create", err)
