@@ -12,7 +12,7 @@
 
 ./gofastcopy --source-dir="/path/to/source"  --target-dir="/path/to/target"
 #
-#如果路径中包含空格，需要用双引号包住
+# 如果路径中包含空格，需要用双引号包住
 ```
 
 2) HDD 机械硬盘复制
@@ -22,7 +22,20 @@
 ./gofastcopy --source-dir="/path/to/source"  --target-dir="/path/to/target"  --serial
 #
 # --serial 是专门针对机械硬盘优化的选项
-#如果路径中包含空格，需要用双引号包住
+# 如果路径中包含空格，需要用双引号包住
+```
+
+2) 复制模式
+
+```Python
+
+./gofastcopy --source-dir="/path/to/source"  --target-dir="/path/to/target"  --copy-mode=1
+#
+# --copy-mode= 默认值为0，可以手动指定为0、1、2
+# copy-mode 有3种模式，在不同的机器上性能表现各不相同，首次使用可以分别测试，选择最快的那一种
+# harryzhu 测试： Linux 和 Mac 平台， 默认的 0 值最快； Windows 平台， 手动指定 1 值最快； 在特别老的机器上，--copy-mode=2 最快。
+# 如果 0 、1 复制模式失败，会自动回退使用 2 复制
+# 
 ```
 
 
