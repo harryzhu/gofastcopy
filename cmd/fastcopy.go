@@ -17,7 +17,7 @@ type CopyElement struct {
 	Finfo    os.FileInfo
 	CopyMode int
 	// 4k align
-	z struct{}
+	_ struct{}
 }
 
 func updateTotalSpeed() {
@@ -72,11 +72,7 @@ func fastCopy() error {
 
 			if totalNum > 99 || totalNum%100 == 0 {
 				updateTotalSpeed()
-				if IsSerial {
-					fmt.Printf(" %s %10d, %20dMB/s\r", ":::", totalNum, totalSpeed>>20)
-				} else {
-					fmt.Printf(" %s %10d, %10d, %25dMB/s,  %s\r", ":::", len(chanFile), totalNum, totalSpeed>>20, memString)
-				}
+				fmt.Printf(" %s %6d, %8d, %10dMB, %6dMB/s,  %s\r", ":::", len(chanFile), totalNum, totalWriteSize>>20, totalSpeed>>20, memString)
 			}
 		}
 		return nil
@@ -183,7 +179,7 @@ func updateTargetDir() error {
 }
 
 func isCopyNeeded(fpath string, finfo fs.FileInfo, targetPath string) bool {
-	if IsOverwrite == false {
+	if IsOverwrite == false && targetPath != "" {
 		if FileExists(targetPath) {
 			numStatistics["skip_exists"]++
 			return false

@@ -21,6 +21,8 @@ var (
 var (
 	// must be in multiples of 64
 	bufSize int = 64 << 10
+	Host    string
+	Port    string
 )
 
 var (
@@ -55,5 +57,5 @@ var (
 )
 
 var (
-	copyAllDone CopyElement = CopyElement{Fsrc: "", Fdst: "", CopyMode: -1}
+	copyAllDone CopyElement = CopyElement{Fsrc: "", Fdst: "", Finfo: nil, CopyMode: -1}
 )

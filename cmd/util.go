@@ -12,7 +12,6 @@ import (
 
 func bootstrap() error {
 	qcap = getThreadNum()
-
 	cpuFlags = getCPUFlags()
 
 	numStatistics = make(map[string]int)
@@ -27,7 +26,7 @@ func bootstrap() error {
 	//
 	numStatistics["symbol_link"] = 0
 	//
-	copymode = make(map[int]string, 3)
+	copymode = make(map[int]string, 2)
 	copymode[0] = "zero copy"
 	copymode[1] = "simd copy"
 
@@ -52,6 +51,58 @@ func FormatPrint(ftype string, key string, args ...any) error {
 
 	}
 	fmt.Printf(f0, key, strings.Join(s, " "))
+	return nil
+}
+
+func argsFinfoValidate() error {
+	if FileExt != "" {
+		FormatPrint("wide", "FileExtenion", FileExt)
+	} else {
+		FormatPrint("wide", "FileExtenion", "*")
+	}
+
+	var minAge, maxAge int64
+	if MinAge != "" {
+		minAge = TimeStr2Unix(MinAge)
+		FormatPrint("wide", "latest-update-time: min", minAge)
+	}
+
+	if MaxAge != "" {
+		maxAge = TimeStr2Unix(MaxAge)
+		FormatPrint("wide", "latest-update-time: max", maxAge)
+	}
+
+	if minAge > 0 && maxAge > 0 && minAge > maxAge {
+		PrintError("argsValidate", NewError("--min-age= cannot be greater than --max-age= "))
+		ExitWithNum(0)
+	}
+
+	if MinSizeMB >= 0 {
+		MinSize = MinSizeMB << 20
+	}
+
+	if MaxSizeMB >= 0 {
+		MaxSize = MaxSizeMB << 20
+	}
+
+	if MinSize != -1 {
+		FormatPrint("wide", "file-size: min", MinSize)
+	}
+
+	if MaxSize != -1 {
+		FormatPrint("wide", "file-size: max", MaxSize)
+	}
+
+	if MinSize > -1 && MaxSize > -1 && MinSize > MaxSize {
+		PrintError("argsValidate", NewError("--min-size= cannot be greater than --max-size= "))
+		ExitWithNum(0)
+	}
+
+	if MinSize < -1 || MaxSize < -1 {
+		PrintError("argsValidate", NewError("--min-size= or --max-size= should be greater than 0 "))
+		ExitWithNum(0)
+	}
+
 	return nil
 }
 
@@ -107,55 +158,9 @@ func argsValidate() error {
 		ExitWithNum(0)
 	}
 
-	if FileExt != "" {
-		FormatPrint("wide", "FileExtenion", FileExt)
-	} else {
-		FormatPrint("wide", "FileExtenion", "*")
-	}
-
-	var minAge, maxAge int64
-	if MinAge != "" {
-		minAge = TimeStr2Unix(MinAge)
-		FormatPrint("wide", "latest-update-time: min", minAge)
-	}
-
-	if MaxAge != "" {
-		maxAge = TimeStr2Unix(MaxAge)
-		FormatPrint("wide", "latest-update-time: max", maxAge)
-	}
-
-	if minAge > 0 && maxAge > 0 && minAge > maxAge {
-		PrintError("argsValidate", NewError("--min-age= cannot be greater than --max-age= "))
-		ExitWithNum(0)
-	}
-
-	if MinSizeMB >= 0 {
-		MinSize = MinSizeMB << 20
-	}
-
-	if MaxSizeMB >= 0 {
-		MaxSize = MaxSizeMB << 20
-	}
-
-	if MinSize != -1 {
-		FormatPrint("wide", "file-size: min", MinSize)
-	}
-
-	if MaxSize != -1 {
-		FormatPrint("wide", "file-size: max", MaxSize)
-	}
-
-	if MinSize > -1 && MaxSize > -1 && MinSize > MaxSize {
-		PrintError("argsValidate", NewError("--min-size= cannot be greater than --max-size= "))
-		ExitWithNum(0)
-	}
-
-	if MinSize < -1 || MaxSize < -1 {
-		PrintError("argsValidate", NewError("--min-size= or --max-size= should be greater than 0 "))
-		ExitWithNum(0)
-	}
-
+	argsFinfoValidate()
 	bootstrap()
+	//
 	copymodestr := "slow copy"
 	if _, ok := copymode[CopyMode]; ok {
 		copymodestr = copymode[CopyMode]
@@ -230,6 +235,10 @@ func Int64Int(n int64) int {
 		return 0
 	}
 	return n10
+}
+
+func GetNowTime() time.Time {
+	return time.Now()
 }
 
 func GetNowUnix() int64 {

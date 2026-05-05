@@ -48,17 +48,29 @@ var rootCmd = &cobra.Command{
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// positional args
+		if SourceDir == "" {
+			if len(args) == 1 || len(args) == 2 {
+				SourceDir = args[0]
+			}
+		}
+
+		if TargetDir == "" {
+			if len(args) == 2 {
+				TargetDir = args[1]
+			}
+		}
+		// norm
 		SourceDir = strings.TrimRight(ToUnixSlash(SourceDir), "/")
 		TargetDir = strings.TrimRight(ToUnixSlash(TargetDir), "/")
 		ExcludeDir = strings.TrimRight(ToUnixSlash(ExcludeDir), "/")
 
-		fmt.Println(SEP)
+	},
+	Run: func(cmd *cobra.Command, args []string) {
 		argsValidate()
 		fmt.Println(SEP)
 		//
 		timeStart = GetNowUnix()
-	},
-	Run: func(cmd *cobra.Command, args []string) {
 		if IsPurge {
 			purgeTargetDir()
 		}
@@ -94,26 +106,26 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&IsSerial, "serial", false, "optimization for hard disk, not for ssd")
 	rootCmd.PersistentFlags().IntVar(&CopyMode, "copy-mode", 0, "mode: 0 = zero copy, 1 = simd copy, default = slow copy")
 	//
-	rootCmd.Flags().BoolVar(&IsIgnoreDotFile, "ignore-dot-file", false, "ignore the file if its file name starts with dot(.), i.e.: .DS_Store")
-	rootCmd.Flags().BoolVar(&IsIgnoreEmptyFolder, "ignore-empty-folder", false, "ignore the folder if it contains nothing")
-	rootCmd.Flags().BoolVar(&IsOverwrite, "overwrite", false, "allow to overwrite the existing files")
-	rootCmd.Flags().BoolVar(&IsPurge, "purge", false, "delete files in --target-dir but NOT in --source-dir")
+	rootCmd.PersistentFlags().BoolVar(&IsIgnoreDotFile, "ignore-dot-file", false, "ignore the file if its file name starts with dot(.), i.e.: .DS_Store")
+	rootCmd.PersistentFlags().BoolVar(&IsIgnoreEmptyFolder, "ignore-empty-folder", false, "ignore the folder if it contains nothing")
+	rootCmd.PersistentFlags().BoolVar(&IsOverwrite, "overwrite", false, "allow to overwrite the existing files")
+	rootCmd.PersistentFlags().BoolVar(&IsPurge, "purge", false, "delete files in --target-dir but NOT in --source-dir")
 
 	//
-	rootCmd.Flags().StringVar(&SourceDir, "source-dir", "", "source folder")
-	rootCmd.Flags().StringVar(&TargetDir, "target-dir", "", "destination folder")
+	rootCmd.PersistentFlags().StringVar(&SourceDir, "source-dir", "", "source folder")
+	rootCmd.PersistentFlags().StringVar(&TargetDir, "target-dir", "", "destination folder")
 	//
-	rootCmd.Flags().StringVar(&ExcludeDir, "exclude-dir", "", "will not copy the file if it is in the exclude-dir")
-	rootCmd.Flags().StringVar(&FileExt, "ext", "", "file type filter, i.e.: .mp4 or .png or .jpg ... ")
+	rootCmd.PersistentFlags().StringVar(&ExcludeDir, "exclude-dir", "", "will not copy the file if it is in the exclude-dir")
+	rootCmd.PersistentFlags().StringVar(&FileExt, "ext", "", "file type filter, i.e.: .mp4 or .png or .jpg ... ")
 	//
-	rootCmd.Flags().Int64Var(&MinSize, "min-size", -1, "from the minimum file size")
-	rootCmd.Flags().Int64Var(&MaxSize, "max-size", -1, "to the maximum file size")
-	rootCmd.Flags().Int64Var(&MinSizeMB, "min-size-mb", -1, "i.e.: 16 means 16MB, will replace --min-size=16*1024*1024 automatically")
-	rootCmd.Flags().Int64Var(&MaxSizeMB, "max-size-mb", -1, "i.e.: 32 means 32MB, will replace --max-size=32*1024*1024 automatically")
+	rootCmd.PersistentFlags().Int64Var(&MinSize, "min-size", -1, "from the minimum file size")
+	rootCmd.PersistentFlags().Int64Var(&MaxSize, "max-size", -1, "to the maximum file size")
+	rootCmd.PersistentFlags().Int64Var(&MinSizeMB, "min-size-mb", -1, "i.e.: 16 means 16MB, will replace --min-size=16*1024*1024 automatically")
+	rootCmd.PersistentFlags().Int64Var(&MaxSizeMB, "max-size-mb", -1, "i.e.: 32 means 32MB, will replace --max-size=32*1024*1024 automatically")
 	//
-	rootCmd.Flags().StringVar(&MinAge, "min-age", "", "format: 2023-12-03,15:09:08, means 2023-12-03 15:09:08")
-	rootCmd.Flags().StringVar(&MaxAge, "max-age", "", "format: 2023-12-25,23:59:59, means 2023-12-25 23:59:59")
+	rootCmd.PersistentFlags().StringVar(&MinAge, "min-age", "", "format: 2023-12-03,15:09:08, means 2023-12-03 15:09:08")
+	rootCmd.PersistentFlags().StringVar(&MaxAge, "max-age", "", "format: 2023-12-25,23:59:59, means 2023-12-25 23:59:59")
 	//
-	rootCmd.Flags().IntVar(&ThreadNum, "threads", 0, "force the concurrent tasks, more threads, more memory required")
+	rootCmd.PersistentFlags().IntVar(&ThreadNum, "threads", 0, "force the concurrent tasks, more threads, more memory required")
 	//
 }
