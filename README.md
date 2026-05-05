@@ -8,7 +8,7 @@
 
 1) SSD 固态硬盘复制
 
-```Python
+```Bash
 ./gofastcopy --source-dir="/path/to/source"  --target-dir="/path/to/target"
 #
 #如果路径中包含空格，需要用双引号包住
@@ -16,7 +16,7 @@
 
 2）HDD 机械硬盘复制
 
-```Python
+```Bash
 ./gofastcopy --source-dir="/path/to/source"  --target-dir="/path/to/target"  --serial
 #
 # --serial 是专门针对机械硬盘优化的选项
