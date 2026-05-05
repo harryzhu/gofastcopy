@@ -4,6 +4,26 @@
 
 `gofastcopy` 同时支持在 `Linux`、`MacOS`、`Windows`三个平台运行
 
+## Quick Start
+
+1) SSD 固态硬盘复制
+
+```Python
+./gofastcopy --source-dir="/path/to/source"  --target-dir="/path/to/target"
+#
+#如果路径中包含空格，需要用双引号包住
+```
+
+2）HDD 机械硬盘复制
+
+```Python
+./gofastcopy --source-dir="/path/to/source"  --target-dir="/path/to/target"  --serial
+#
+# --serial 是专门针对机械硬盘优化的选项
+#如果路径中包含空格，需要用双引号包住
+```
+
+
 ## 原理
 利用CPU多核并行、SSD并行读写的特性，在内存中建立2个分开运行的队列，一个队列持续从源文件夹中读取小文件存入内存，一个队列不断写入文件到目标文件夹。
 
