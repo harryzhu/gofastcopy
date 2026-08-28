@@ -108,7 +108,7 @@ func init() {
 	//
 	rootCmd.PersistentFlags().BoolVar(&IsIgnoreDotFile, "ignore-dot-file", false, "ignore the file if its file name starts with dot(.), i.e.: .DS_Store")
 	rootCmd.PersistentFlags().BoolVar(&IsIgnoreEmptyFolder, "ignore-empty-folder", false, "ignore the folder if it contains nothing")
-	rootCmd.PersistentFlags().BoolVar(&IsOverwrite, "overwrite", false, "allow to overwrite the existing files")
+	rootCmd.PersistentFlags().BoolVar(&IsOverwrite, "overwrite", true, "allow to overwrite the existing files")
 	rootCmd.PersistentFlags().BoolVar(&IsPurge, "purge", false, "delete files in --target-dir but NOT in --source-dir")
 
 	//

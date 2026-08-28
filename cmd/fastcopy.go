@@ -247,8 +247,7 @@ func isCopyNeeded(fpath string, finfo fs.FileInfo, targetPath string) bool {
 func taskChanFile() error {
 
 	wgGetChanFile := sync.WaitGroup{}
-	numWait := int32(qcap)
-	curNumGet := int32(0)
+	sem := make(chan struct{}, max(numCPU, 4))
 
 	for {
 		cf := <-chanFile
@@ -259,26 +258,23 @@ func taskChanFile() error {
 		}
 
 		atomic.AddInt64(&totalWriteSize, cf.Finfo.Size())
-
 		atomic.AddInt32(&taskNumGet, 1)
+
+		sem <- struct{}{}
 		wgGetChanFile.Add(1)
 
 		go func(cf CopyElement) {
 			defer func() {
+				<- sem
 				atomic.AddInt32(&taskNumGet, -1)
 				wgGetChanFile.Done()
 			}()
 			getChanFileToDisk(cf)
 		}(cf)
 
-		curNumGet = atomic.LoadInt32(&taskNumGet)
-
-		if curNumGet%numWait == 0 {
-			wgGetChanFile.Wait()
-		}
-
 	}
 	wgGetChanFile.Wait()
+	close(sem)
 
 	return nil
 }
