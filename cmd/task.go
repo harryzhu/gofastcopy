@@ -143,6 +143,7 @@ func taskFastCopy() error {
 					atomic.AddInt64(&totalSize, n)
 					atomic.AddInt64(&totalNum, 1)
 				}
+				PrintSpinner(Int64Str(atomic.LoadInt64(&totalNum)))
 			}()
 		}
 	}

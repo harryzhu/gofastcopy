@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"encoding/hex"
+	"fmt"
 	"hash"
 	"io"
 	"io/fs"
@@ -43,6 +44,10 @@ func GetNowUnixMilli() int64 {
 func ToUnixSlash(s string) string {
 	// for windows
 	return strings.ReplaceAll(s, "\\", "/")
+}
+
+func Int64Str(n int64) string {
+	return fmt.Sprintf("%v", n)
 }
 
 func TimeStr2Unix(s string) int64 {
