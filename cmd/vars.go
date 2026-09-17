@@ -1,61 +1,62 @@
 package cmd
 
 import (
-	"errors"
 	"io/fs"
 	"regexp"
-	"runtime"
 )
 
-const (
-	MB int64 = 1 << 20
+type CopyElement struct {
+	Flag  string
+	Src   string
+	Dst   string
+	Finfo fs.FileInfo
+}
+
+var (
+	chanElement chan CopyElement = make(chan CopyElement, 4096)
+)
+
+var (
+	FlagAllDone string = "__ALL_DONE__"
+	minDiffSize int64  = 128 << 20
+)
+
+var (
+	IsDebug             bool
+	IsIgnoreDotFile     bool
+	IsIgnoreEmptyFolder bool
+	IsFollowSymlink     bool
+	IsOverwrite         bool
+	IsMirror            bool
+	MaxSize             int64
+	MinSize             int64
+	MaxSizeMB           int64
+	MinSizeMB           int64
+	MinAge              string
+	MaxAge              string
+	SourceDir           string
+	TargetDir           string
+	ExcludeDir          string
+	FileExt             string
 	//
-	uMB uint64 = 1 << 20
-	SEP string = "------------------------------------------------------------"
+	IsSerial bool
+	CopyMode int
 )
 
 var (
-	copymode map[int]string
+	MinAgeUnix int64
+	MaxAgeUnix int64
+	fextMatch  *regexp.Regexp
 )
 
 var (
-	// must be in multiples of 64
-	bufSize int = 64 << 10
-	Host    string
-	Port    string
-)
-
-var (
-	timeGetStart   int64                  = GetNowUnix()
-	timeGetStop    int64                  = 0
-	timeDuration   int64                  = 0
-	totalWriteSize int64                  = 0
-	totalSpeed     int64                  = 0
-	totalNum       int                    = 0
-	dirList        map[string]fs.DirEntry = make(map[string]fs.DirEntry, 2048)
-)
-
-var (
-	qcap             int
-	chanFile         chan CopyElement = make(chan CopyElement, 4096)
-	isChanFileRWDone bool
-	taskNumGet       int32 = 0
-)
-
-var (
-	memStats  runtime.MemStats
-	memString string
-	cpuFlags  string
-)
-
-var numStatistics map[string]int
-
-var fextMatch *regexp.Regexp
-
-var (
-	ErrNotSymLink error = errors.New("invalid symlink")
-)
-
-var (
-	copyAllDone CopyElement = CopyElement{Fsrc: "", Fdst: "", Finfo: nil, CopyMode: -1}
+	timeStart  int64
+	timeStop   int64
+	numCPU     int = 4
+	numTask    int = 4
+	bufSize    int = 64 << 10
+	totalSize  int64
+	totalNum   int64
+	totalSpeed int64
+	srcNum     int64
 )

@@ -42,12 +42,14 @@ func init() {
 func simdCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
 	srcFd, err := syscall.Open(src, syscall.O_RDONLY, 0)
 	if err != nil {
+		PrintError("simdCopyFile: syscall.Open", err)
 		return 0, err
 	}
 
 	dstTemp := strings.Join([]string{dst, "ing"}, ".")
 	dstFd, err := syscall.Open(dstTemp, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, 0644)
 	if err != nil {
+		PrintError("simdCopyFile: syscall.Open", err)
 		return 0, err
 	}
 

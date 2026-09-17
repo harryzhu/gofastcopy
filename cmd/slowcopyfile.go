@@ -8,6 +8,11 @@ import (
 )
 
 func copyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
+	if finfo.Size() > minDiffSize {
+		if IsSame(src, dst) == true {
+			return 0, nil
+		}
+	}
 	MakeDirs(filepath.Dir(dst))
 
 	if CopyMode == 0 {
@@ -71,41 +76,56 @@ func slowCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 	return finfo.Size(), nil
 }
 
-func copyLink(src, dst string) (n int, err error) {
+func isSymlink(src string) bool {
+	linfo, err := os.Lstat(src)
+	if err != nil {
+		PrintError("isSymblink", err)
+		return false
+	}
+	if linfo.Mode()&os.ModeSymlink != 0 {
+		return true
+	}
+	return false
+}
+
+func copySymlink(src, dst string) (n int, err error) {
 	src = ToUnixSlash(src)
 	dst = ToUnixSlash(dst)
 
-	if _, err := os.Stat(dst); err == nil {
-		return 0, nil
-	}
-
 	linfo, err := os.Lstat(src)
 	if err != nil {
-		PrintError("copyLink", err)
+		PrintError("copyLink: os.Lstat", err)
 		return 0, err
+	}
+
+	if Exists(dst) && IsOverwrite == false {
+		return 1, nil
+	}
+
+	if Exists(dst) {
+		err = os.Remove(dst)
+		PrintError("copyLink: os.Remove", err)
 	}
 
 	if linfo.Mode()&os.ModeSymlink != 0 {
 		DebugInfo("copyLink", strings.TrimLeft(src, SourceDir), ": is a symblink")
 		srcLinkTarget, err := os.Readlink(src)
 		if err != nil {
-			PrintError("copyLink", err)
+			PrintError("copyLink: os.Readlink", err)
 			return 0, err
 		}
-		//DebugInfo("copyLink: original", src, " -> ", srcLinkTarget)
 		srcLinkTarget = strings.Replace(srcLinkTarget, SourceDir, TargetDir, 1)
-		//DebugInfo("copyLink: replaced", src, " -> ", srcLinkTarget)
 
 		MakeDirs(filepath.Dir(dst))
 
 		err = os.Symlink(srcLinkTarget, dst)
 		if err != nil {
-			PrintError("copyLink: Symlink", err)
+			PrintError("copyLink: os.Symlink", err)
 			return 0, err
 		}
 		return 1, nil
 	}
-	return 0, ErrNotSymLink
+	return 0, NewError("ErrNotSymLink")
 }
 
 func zeroCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
