@@ -159,7 +159,8 @@ gofastcopy  --serial 需要 251 秒，比 rsync 快了 26 秒
 #
 # --ignore-dot-file 默认为 false ： 是否忽略点（.）开头的文件
 # --ignore-empty-folder 默认为 false ：是否忽略空文件夹
-# --overwrite 默认为 false ： 是否允许覆盖已经存在的文件
+# --overwrite 默认为 true ： 是否允许覆盖已经存在的文件
+# --follow-symlink 默认为 false ： 软链接，设置为false，仅复制软链接；设置为true，复制软链接指向的文件
 # --mirror 默认为 false ： 是否删除目标文件夹中存在但源文件夹中不存在的文件，即是否清理目标文件夹中多余的文件,谨慎使用
 #
 #
