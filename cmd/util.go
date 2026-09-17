@@ -167,6 +167,6 @@ func showSpeed(dSec float64) error {
 	if dSec > 0 {
 		tSpeedMB = int64(float64(tSize)/dSec) >> 20
 	}
-	PrintlnInfo("green", "Stat", tSpeedMB, " MB/s, ", tNum, "/", sNum, " Files, ", tSize, " Bytes")
+	PrintlnInfo("green", "Stat", tSpeedMB, " MB/s, ", tNum, "/", sNum, " Files, ", tSize>>20, " MB (", tSize, " Bytes)")
 	return nil
 }

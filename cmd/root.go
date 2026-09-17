@@ -46,7 +46,7 @@ var rootCmd = &cobra.Command{
 		timeStop = GetNowUnixMilli()
 		tDuration := float64(float64(timeStop-timeStart) / float64(1000.0))
 		showSpeed(tDuration)
-		PrintlnInfo("purple", "Time Duraton", tDuration, " sec")
+		PrintlnInfo("purple", "Time Elapse", tDuration, " sec")
 	},
 }
 
