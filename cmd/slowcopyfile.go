@@ -12,7 +12,7 @@ func copyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
 	dst = ToUnixSlash(dst)
 	if finfo.Size() > minDiffSize {
 		if IsSame(src, dst) == true {
-			return 0, nil
+			return finfo.Size(), nil
 		}
 	}
 	MakeDirs(filepath.Dir(dst))
