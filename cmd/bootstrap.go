@@ -18,6 +18,11 @@ func Bootstrap() error {
 		numTask = 64
 	}
 
+	if runtime.GOOS == "windows" {
+		IsFollowSymlink = true
+		PrintlnInfo("green", "--follow-symlink=true", "always \"true\" on Windows")
+	}
+
 	SourceDir = strings.TrimRight(ToUnixSlash(SourceDir), "/")
 	TargetDir = strings.TrimRight(ToUnixSlash(TargetDir), "/")
 	ExcludeDir = strings.TrimRight(ToUnixSlash(ExcludeDir), "/")

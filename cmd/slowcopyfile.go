@@ -8,6 +8,8 @@ import (
 )
 
 func copyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
+	src = ToUnixSlash(src)
+	dst = ToUnixSlash(dst)
 	if finfo.Size() > minDiffSize {
 		if IsSame(src, dst) == true {
 			return 0, nil
@@ -42,32 +44,30 @@ func copyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
 func slowCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err error) {
 	srcFileHandler, err := os.Open(src)
 	if err != nil {
-		PrintError("CopyFile: os.Open", err)
+		PrintError("slowCopyFile: os.Open", err)
 		return 0, err
 	}
 
-	dstTemp := strings.Join([]string{dst, "ing"}, ".")
-	dstFileHandler, err := os.Create(dstTemp)
+	if Exists(dst) {
+		err = os.Remove(dst)
+		PrintError("slowCopyFile: os.Remove", err)
+	}
+	dstFileHandler, err := os.OpenFile(dst, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, os.ModePerm)
+
 	if err != nil {
-		PrintError("CopyFile: os.Create", err)
+		PrintError("slowCopyFile: os.OpenFile", err)
 		return 0, err
 	}
 
 	buf := make([]byte, bufSize)
 	_, err = io.CopyBuffer(dstFileHandler, srcFileHandler, buf)
 	if err != nil {
-		PrintError("CopyFile: io.CopyBuffer", err)
+		PrintError("slowCopyFile: io.CopyBuffer", err)
 		return 0, err
 	}
 
-	srcFileHandler.Close()
 	dstFileHandler.Close()
-
-	err = os.Rename(dstTemp, dst)
-	if err != nil {
-		PrintError("CopyFile: os.Rename", err)
-		return 0, err
-	}
+	srcFileHandler.Close()
 
 	if err := chmodFile(dst, finfo); err != nil {
 		return 0, err
@@ -135,24 +135,21 @@ func zeroCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 		return 0, err
 	}
 
-	dstTemp := strings.Join([]string{dst, "ing"}, ".")
-	dstFileHandler, err := os.Create(dstTemp)
+	if Exists(dst) {
+		err = os.Remove(dst)
+		PrintError("zeroCopyFile: os.Remove", err)
+	}
+	dstFileHandler, err := os.OpenFile(dst, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, os.ModePerm)
 	if err != nil {
-		PrintError("zeroCopyFile: os.Create", err)
+		PrintError("zeroCopyFile: os.OpenFile", err)
 		return 0, err
 	}
 
 	writeSize, err = dstFileHandler.ReadFrom(srcFileHandler)
-	PrintError("zeroCopyFile: os.Open", err)
+	PrintError("zeroCopyFile: ReadFrom", err)
 
-	srcFileHandler.Close()
 	dstFileHandler.Close()
-
-	err = os.Rename(dstTemp, dst)
-	if err != nil {
-		PrintError("zeroCopyFile: os.Rename", err)
-		return 0, err
-	}
+	srcFileHandler.Close()
 
 	if err := chmodFile(dst, finfo); err != nil {
 		return 0, err
