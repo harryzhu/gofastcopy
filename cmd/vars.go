@@ -19,6 +19,7 @@ var (
 var (
 	FlagAllDone string = "__ALL_DONE__"
 	minDiffSize int64  = 128 << 20
+	isOnWindows bool   = false
 )
 
 var (

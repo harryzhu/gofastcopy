@@ -19,6 +19,10 @@ func Bootstrap() error {
 	}
 
 	if runtime.GOOS == "windows" {
+		isOnWindows = true
+	}
+
+	if isOnWindows {
 		IsFollowSymlink = true
 		PrintlnInfo("green", "--follow-symlink=true", "always \"true\" on Windows")
 	}

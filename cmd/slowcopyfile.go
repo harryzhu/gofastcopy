@@ -135,11 +135,13 @@ func zeroCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 		return 0, err
 	}
 
-	if Exists(dst) {
+	dstTemp := strings.Join([]string{dst, "ing"}, ".")
+	if isOnWindows && Exists(dst) {
 		err = os.Remove(dst)
 		PrintError("zeroCopyFile: os.Remove", err)
+		dstTemp = dst
 	}
-	dstFileHandler, err := os.OpenFile(dst, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	dstFileHandler, err := os.OpenFile(dstTemp, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		PrintError("zeroCopyFile: os.OpenFile", err)
 		return 0, err
@@ -150,6 +152,11 @@ func zeroCopyFile(src, dst string, finfo os.FileInfo) (writeSize int64, err erro
 
 	dstFileHandler.Close()
 	srcFileHandler.Close()
+
+	if isOnWindows == false {
+		err = os.Rename(dstTemp, dst)
+		PrintError("zeroCopyFile: os.Rename", err)
+	}
 
 	if err := chmodFile(dst, finfo); err != nil {
 		return 0, err
